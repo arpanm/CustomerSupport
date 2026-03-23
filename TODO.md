@@ -634,8 +634,21 @@
 - [ ] @Transactional rollback after each test
 - [ ] Tenant isolation verified in each service IT
 - [ ] All ITs green before merge
+#### Files Created
+- `backend/shared/src/test/java/in/supporthub/shared/test/AbstractIntegrationTest.java`
+- `backend/auth-service/src/test/java/in/supporthub/auth/integration/CustomerAuthIT.java`
+- `backend/auth-service/src/test/java/in/supporthub/auth/integration/AgentAuthIT.java`
+- `backend/ticket-service/src/test/java/in/supporthub/ticket/integration/TicketCrudIT.java`
+- `backend/customer-service/src/test/java/in/supporthub/customer/integration/CustomerProfileIT.java`
+- `backend/notification-service/src/test/java/in/supporthub/notification/integration/NotificationIT.java`
+- `backend/ai-service/src/test/java/in/supporthub/ai/integration/AiServiceIT.java`
+- `backend/faq-service/src/test/java/in/supporthub/faq/integration/FaqCrudIT.java`
+- `backend/order-sync-service/src/test/java/in/supporthub/ordersync/integration/OmsConfigIT.java`
+- `backend/reporting-service/src/test/java/in/supporthub/reporting/integration/ReportingIT.java`
+- `application-test.yml` added for each service above
+- Testcontainers dependencies added to pom.xml for: shared, customer-service, notification-service, ai-service, faq-service, order-sync-service, reporting-service
 #### Test Results
-- Integration: PENDING
+- Integration: FILES_CREATED — pending execution
 
 ---
 

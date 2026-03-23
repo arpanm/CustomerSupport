@@ -1,0 +1,23 @@
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+  kafka:
+    producer:
+      retries: 0
+    consumer:
+      auto-offset-reset: earliest
+  ai:
+    anthropic:
+      # Real API calls are intercepted by @MockBean AnthropicChatModel in tests
+      api-key: test-mock-anthropic-key
+      chat:
+        options:
+          model: claude-haiku-4-5-20251001
+
+logging:
+  level:
+    in.supporthub: DEBUG
+    org.springframework.security: WARN
+    org.hibernate.SQL: WARN

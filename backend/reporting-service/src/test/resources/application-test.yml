@@ -1,0 +1,17 @@
+spring:
+  kafka:
+    producer:
+      retries: 0
+    consumer:
+      auto-offset-reset: earliest
+  # Disable Spring Security's role-based access in tests so TestRestTemplate
+  # can reach all endpoints without JWT authentication. The TenantContextFilter
+  # still enforces X-Tenant-ID header presence.
+  security:
+    enabled: false
+
+logging:
+  level:
+    in.supporthub: DEBUG
+    org.springframework.security: WARN
+    org.elasticsearch: WARN

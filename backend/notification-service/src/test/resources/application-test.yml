@@ -1,0 +1,23 @@
+spring:
+  kafka:
+    producer:
+      retries: 0
+    consumer:
+      auto-offset-reset: earliest
+
+# Stub all external messaging providers — no real SMS/email/WhatsApp in tests
+msg91:
+  api-key: test-noop-key
+  flow-id: test-flow
+  sender-id: TEST
+
+sendgrid:
+  api-key: test-noop-key
+
+whatsapp:
+  api-key: test-noop-key
+
+logging:
+  level:
+    in.supporthub: DEBUG
+    org.springframework.security: WARN

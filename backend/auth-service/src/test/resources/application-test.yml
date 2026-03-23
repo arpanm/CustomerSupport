@@ -1,0 +1,32 @@
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+  kafka:
+    producer:
+      retries: 0
+    consumer:
+      auto-offset-reset: earliest
+  mail:
+    host: localhost
+    port: 1025
+
+# Override JWT keys with test keys — real key files not required in tests
+jwt:
+  private-key-location: classpath:keys/private.pem
+  public-key-location: classpath:keys/public.pem
+  access-token-expiry-seconds: 3600
+  refresh-token-expiry-days: 30
+
+# Stub MSG91 so no real SMS is sent in tests
+msg91:
+  api-key: test-noop-key
+  sender-id: TEST
+  template-id: test-template
+
+logging:
+  level:
+    in.supporthub: DEBUG
+    org.springframework.security: WARN
+    org.hibernate.SQL: WARN

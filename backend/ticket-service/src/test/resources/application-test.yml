@@ -1,0 +1,16 @@
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+  kafka:
+    producer:
+      retries: 0
+    consumer:
+      auto-offset-reset: earliest
+
+logging:
+  level:
+    in.supporthub: DEBUG
+    org.springframework.security: WARN
+    org.hibernate.SQL: WARN

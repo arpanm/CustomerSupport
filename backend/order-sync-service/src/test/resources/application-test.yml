@@ -1,0 +1,15 @@
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+
+# Test encryption key — 32-byte base64-encoded value for AES-256
+encryption:
+  secret-key: dGVzdC1lbmNyeXB0aW9uLWtleS0zMmJ5dGVz
+
+logging:
+  level:
+    in.supporthub: DEBUG
+    org.springframework.security: WARN
+    org.hibernate.SQL: WARN

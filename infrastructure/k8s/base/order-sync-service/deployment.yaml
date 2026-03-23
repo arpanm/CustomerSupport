@@ -1,0 +1,72 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: order-sync-service
+  labels:
+    app: order-sync-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: order-sync-service
+  template:
+    metadata:
+      labels:
+        app: order-sync-service
+    spec:
+      containers:
+        - name: order-sync-service
+          image: supporthub/order-sync-service:latest
+          ports:
+            - containerPort: 8089
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: prod
+            - name: SERVER_PORT
+              value: "8089"
+            - name: DB_URL
+              valueFrom:
+                secretKeyRef:
+                  name: supporthub-db-secret
+                  key: url
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: supporthub-db-secret
+                  key: username
+            - name: DB_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: supporthub-db-secret
+                  key: password
+            - name: REDIS_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: supporthub-config
+                  key: redis.host
+            - name: KAFKA_SERVERS
+              valueFrom:
+                configMapKeyRef:
+                  name: supporthub-config
+                  key: kafka.servers
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8089
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8089
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 3
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"

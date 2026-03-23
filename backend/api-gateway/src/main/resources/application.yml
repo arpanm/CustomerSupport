@@ -1,0 +1,240 @@
+spring:
+  application:
+    name: api-gateway
+  threads:
+    virtual:
+      enabled: true
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASS:}
+  cloud:
+    gateway:
+      routes:
+        # Auth service — public, IP rate-limited only
+        - id: auth-service
+          uri: ${AUTH_SERVICE_URL:http://localhost:8081}
+          predicates:
+            - Path=/api/v1/auth/**
+          filters:
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 10
+                redis-rate-limiter.burstCapacity: 20
+                key-resolver: "#{@ipKeyResolver}"
+
+        # Ticket service — JWT + tenant required
+        - id: ticket-service
+          uri: ${TICKET_SERVICE_URL:http://localhost:8082}
+          predicates:
+            - Path=/api/v1/tickets/**
+          filters:
+            - JwtAuthFilter
+            - TenantContextFilter
+            - name: CircuitBreaker
+              args:
+                name: ticket-service-cb
+                fallbackUri: forward:/fallback/service
+
+        # Customer service — JWT + tenant required
+        - id: customer-service
+          uri: ${CUSTOMER_SERVICE_URL:http://localhost:8083}
+          predicates:
+            - Path=/api/v1/customers/**
+          filters:
+            - JwtAuthFilter
+            - TenantContextFilter
+            - name: CircuitBreaker
+              args:
+                name: customer-service-cb
+                fallbackUri: forward:/fallback/service
+
+        # AI service — JWT + tenant required
+        - id: ai-service
+          uri: ${AI_SERVICE_URL:http://localhost:8084}
+          predicates:
+            - Path=/api/v1/ai/**
+          filters:
+            - JwtAuthFilter
+            - TenantContextFilter
+            - name: CircuitBreaker
+              args:
+                name: ai-service-cb
+                fallbackUri: forward:/fallback/service
+
+        # Notification service — JWT + tenant required
+        - id: notification-service
+          uri: ${NOTIFICATION_SERVICE_URL:http://localhost:8085}
+          predicates:
+            - Path=/api/v1/notifications/**
+          filters:
+            - JwtAuthFilter
+            - TenantContextFilter
+            - name: CircuitBreaker
+              args:
+                name: notification-service-cb
+                fallbackUri: forward:/fallback/service
+
+        # FAQ service — tenant required, JWT optional (public FAQs visible to customers)
+        - id: faq-service
+          uri: ${FAQ_SERVICE_URL:http://localhost:8086}
+          predicates:
+            - Path=/api/v1/faqs/**
+          filters:
+            - TenantContextFilter
+            - name: CircuitBreaker
+              args:
+                name: faq-service-cb
+                fallbackUri: forward:/fallback/service
+
+        # Reporting service — JWT + tenant required
+        - id: reporting-service
+          uri: ${REPORTING_SERVICE_URL:http://localhost:8087}
+          predicates:
+            - Path=/api/v1/reports/**
+          filters:
+            - JwtAuthFilter
+            - TenantContextFilter
+            - name: CircuitBreaker
+              args:
+                name: reporting-service-cb
+                fallbackUri: forward:/fallback/service
+
+        # Tenant service — JWT required (super admin operations)
+        - id: tenant-service
+          uri: ${TENANT_SERVICE_URL:http://localhost:8088}
+          predicates:
+            - Path=/api/v1/tenants/**
+          filters:
+            - JwtAuthFilter
+            - TenantContextFilter
+            - name: CircuitBreaker
+              args:
+                name: tenant-service-cb
+                fallbackUri: forward:/fallback/service
+
+        # Order sync service — JWT + tenant required
+        - id: order-sync-service
+          uri: ${ORDER_SYNC_SERVICE_URL:http://localhost:8089}
+          predicates:
+            - Path=/api/v1/orders/**
+          filters:
+            - JwtAuthFilter
+            - TenantContextFilter
+            - name: CircuitBreaker
+              args:
+                name: order-sync-service-cb
+                fallbackUri: forward:/fallback/service
+
+        # MCP server — JWT required (short-lived MCP tokens), SSE streaming
+        - id: mcp-server
+          uri: ${MCP_SERVER_URL:http://localhost:8090}
+          predicates:
+            - Path=/mcp/**
+          filters:
+            - JwtAuthFilter
+            - TenantContextFilter
+
+        # Agent dashboard WebSocket proxy
+        - id: agent-dashboard-ws
+          uri: ${AGENT_DASHBOARD_WS_URL:ws://localhost:8082}
+          predicates:
+            - Path=/ws/**
+          filters:
+            - JwtAuthFilter
+            - TenantContextFilter
+
+      default-filters:
+        - DedupeResponseHeader=Access-Control-Allow-Credentials Access-Control-Allow-Origin
+
+server:
+  port: 8080
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,gateway
+  endpoint:
+    health:
+      show-details: when-authorized
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+  tracing:
+    sampling:
+      probability: 0.1
+
+jwt:
+  public-key-location: ${JWT_PUBLIC_KEY_LOCATION:classpath:keys/public.pem}
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      ticket-service-cb:
+        sliding-window-size: 10
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 10s
+        permitted-number-of-calls-in-half-open-state: 3
+        automatic-transition-from-open-to-half-open-enabled: true
+      customer-service-cb:
+        sliding-window-size: 10
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 10s
+        permitted-number-of-calls-in-half-open-state: 3
+        automatic-transition-from-open-to-half-open-enabled: true
+      ai-service-cb:
+        sliding-window-size: 5
+        failure-rate-threshold: 60
+        wait-duration-in-open-state: 30s
+        permitted-number-of-calls-in-half-open-state: 2
+        automatic-transition-from-open-to-half-open-enabled: true
+      faq-service-cb:
+        sliding-window-size: 10
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 10s
+        permitted-number-of-calls-in-half-open-state: 3
+        automatic-transition-from-open-to-half-open-enabled: true
+      notification-service-cb:
+        sliding-window-size: 10
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 10s
+        permitted-number-of-calls-in-half-open-state: 3
+        automatic-transition-from-open-to-half-open-enabled: true
+      reporting-service-cb:
+        sliding-window-size: 10
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 15s
+        permitted-number-of-calls-in-half-open-state: 3
+        automatic-transition-from-open-to-half-open-enabled: true
+      tenant-service-cb:
+        sliding-window-size: 10
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 10s
+        permitted-number-of-calls-in-half-open-state: 3
+        automatic-transition-from-open-to-half-open-enabled: true
+      order-sync-service-cb:
+        sliding-window-size: 10
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 10s
+        permitted-number-of-calls-in-half-open-state: 3
+        automatic-transition-from-open-to-half-open-enabled: true
+
+gateway:
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:3001,http://localhost:3002}
+  rate-limit:
+    tenant:
+      replenish-rate: 1000
+      burst-capacity: 2000
+    ip:
+      replenish-rate: 100
+      burst-capacity: 200
+
+logging:
+  level:
+    in.supporthub.gateway: INFO
+    org.springframework.cloud.gateway: INFO
+    reactor.netty: WARN

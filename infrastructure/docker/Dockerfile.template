@@ -1,0 +1,24 @@
+# Generic multi-stage build for Spring Boot services
+# Usage: docker build --build-arg SERVICE=ticket-service -f Dockerfile.template backend/
+ARG SERVICE=app
+ARG JAVA_VERSION=21
+
+# ─── Build stage ────────────────────────────────────────────
+FROM eclipse-temurin:${JAVA_VERSION}-jdk-alpine AS builder
+WORKDIR /build
+COPY . .
+RUN ./mvnw clean package -pl ${SERVICE} -am -DskipTests --no-transfer-progress
+
+# ─── Runtime stage ──────────────────────────────────────────
+FROM eclipse-temurin:${JAVA_VERSION}-jre-alpine AS runtime
+RUN addgroup -S supporthub && adduser -S supporthub -G supporthub
+WORKDIR /app
+COPY --from=builder /build/${SERVICE}/target/*.jar app.jar
+RUN chown supporthub:supporthub app.jar
+USER supporthub
+EXPOSE 8080
+ENTRYPOINT ["java", "-jar", \
+  "-Dspring.threads.virtual.enabled=true", \
+  "-XX:+UseContainerSupport", \
+  "-XX:MaxRAMPercentage=75.0", \
+  "app.jar"]

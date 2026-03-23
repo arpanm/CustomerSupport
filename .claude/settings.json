@@ -1,0 +1,37 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git *)",
+      "Bash(./mvnw *)",
+      "Bash(npm *)",
+      "Bash(docker *)",
+      "Bash(docker compose *)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "FILE=$(echo $CLAUDE_TOOL_INPUT | python3 -c \"import sys,json; d=json.load(sys.stdin); print(d.get('file_path', d.get('path', '')))\" 2>/dev/null || echo ''); if echo \"$FILE\" | grep -qE '(REQUIREMENT|ARCHITECTURE)\\.md$'; then echo '{\"feedback\": \"WARNING: Editing source-of-truth file. Ensure TODO.md has a DOCS task for this change.\"}'; fi",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "OUTPUT=$(echo $CLAUDE_TOOL_RESULT | python3 -c \"import sys,json; d=json.load(sys.stdin); print(d.get('output',''))\" 2>/dev/null || echo ''); if echo \"$OUTPUT\" | grep -qiE '(BUILD FAILURE|Tests run:.*Failures:|FAILED)'; then echo '{\"feedback\": \"WARNING: Build or test failure detected. Create a TEST-NNN or BUG-NNN task in TODO.md before continuing.\"}'; fi",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}

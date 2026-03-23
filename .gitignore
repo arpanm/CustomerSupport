@@ -1,0 +1,41 @@
+# Maven
+backend/.mvn/wrapper/maven-wrapper.jar
+backend/target/
+**/target/
+
+# IDE
+.idea/
+*.iml
+*.iws
+.vscode/
+*.swp
+
+# Node
+node_modules/
+frontend/node_modules/
+**/node_modules/
+frontend/dist/
+**/dist/
+
+# Environment files
+.env
+.env.local
+infrastructure/docker/.env
+
+# Keys — never commit RSA/private keys
+**/keys/*.pem
+**/keys/*.key
+**/keys/private.pem
+**/keys/public.pem
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Spring Boot
+**/application-local.yml
+**/application-secret.yml
+
+# Logs
+*.log
+logs/

@@ -1,0 +1,20 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: supporthub
+resources:
+  - namespace.yaml
+  - configmap.yaml
+  - api-gateway/
+  - auth-service/
+  - ticket-service/
+  - customer-service/
+  - ai-service/
+  - notification-service/
+  - faq-service/
+  - reporting-service/
+  - tenant-service/
+  - order-sync-service/
+  - mcp-server/
+commonLabels:
+  app.kubernetes.io/part-of: supporthub
+  app.kubernetes.io/managed-by: kustomize

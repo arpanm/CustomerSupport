@@ -1,0 +1,19 @@
+{
+  "properties": {
+    "tenantId": {"type": "keyword"},
+    "ticketNumber": {"type": "keyword"},
+    "status": {"type": "keyword"},
+    "priority": {"type": "keyword"},
+    "channel": {"type": "keyword"},
+    "categoryId": {"type": "keyword"},
+    "assignedAgentId": {"type": "keyword"},
+    "customerId": {"type": "keyword"},
+    "sentimentLabel": {"type": "keyword"},
+    "sentimentScore": {"type": "double"},
+    "slaBreached": {"type": "boolean"},
+    "createdAt": {"type": "date"},
+    "resolvedAt": {"type": "date"},
+    "resolutionTimeMinutes": {"type": "long"},
+    "updatedAt": {"type": "date"}
+  }
+}

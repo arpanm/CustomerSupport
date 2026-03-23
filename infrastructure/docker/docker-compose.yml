@@ -8,6 +8,7 @@ version: "3.9"
 networks:
   supporthub-network:
     driver: bridge
+    name: supporthub_default
 
 volumes:
   postgres-data:
@@ -29,6 +30,8 @@ services:
     image: postgres:16-alpine
     container_name: supporthub-postgres
     restart: unless-stopped
+    labels:
+      - "com.docker.compose.project=supporthub"
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-supporthub}
       POSTGRES_USER: ${POSTGRES_USER:-supporthub}
@@ -54,6 +57,8 @@ services:
     image: mongo:7-jammy
     container_name: supporthub-mongo
     restart: unless-stopped
+    labels:
+      - "com.docker.compose.project=supporthub"
     environment:
       MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER:-supporthub}
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD:-supporthub_dev_password}
@@ -78,6 +83,8 @@ services:
     image: redis:7-alpine
     container_name: supporthub-redis
     restart: unless-stopped
+    labels:
+      - "com.docker.compose.project=supporthub"
     command: >
       redis-server
       --requirepass ${REDIS_PASSWORD:-supporthub_dev_password}
@@ -103,6 +110,8 @@ services:
     image: confluentinc/cp-zookeeper:7.6.0
     container_name: supporthub-zookeeper
     restart: unless-stopped
+    labels:
+      - "com.docker.compose.project=supporthub"
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
@@ -128,6 +137,8 @@ services:
     image: confluentinc/cp-kafka:7.6.0
     container_name: supporthub-kafka
     restart: unless-stopped
+    labels:
+      - "com.docker.compose.project=supporthub"
     depends_on:
       zookeeper:
         condition: service_healthy
@@ -163,6 +174,8 @@ services:
     image: elasticsearch:8.13.0
     container_name: supporthub-elasticsearch
     restart: unless-stopped
+    labels:
+      - "com.docker.compose.project=supporthub"
     environment:
       - discovery.type=single-node
       - xpack.security.enabled=false
@@ -198,6 +211,8 @@ services:
     image: minio/minio:latest
     container_name: supporthub-minio
     restart: unless-stopped
+    labels:
+      - "com.docker.compose.project=supporthub"
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
@@ -223,6 +238,8 @@ services:
     image: postgres:16-alpine
     container_name: supporthub-strapi-postgres
     restart: unless-stopped
+    labels:
+      - "com.docker.compose.project=supporthub"
     environment:
       POSTGRES_DB: ${STRAPI_DB_NAME:-strapi}
       POSTGRES_USER: ${STRAPI_DB_USER:-strapi}

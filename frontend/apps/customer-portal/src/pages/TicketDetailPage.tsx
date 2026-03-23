@@ -97,7 +97,7 @@ export function TicketDetailPage() {
     queryKey: ['ai-suggestions', id],
     queryFn: async (): Promise<AiSuggestionsResponse> => {
       const token = useAuthStore.getState().token ?? '';
-      const apiBase = import.meta.env.VITE_API_BASE_URL as string;
+      const apiBase = import.meta.env.VITE_API_BASE_URL;
       const response = await fetch(`${apiBase}/api/v1/ai/resolution-suggestions/${id ?? ''}`, {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -212,8 +212,8 @@ export function TicketDetailPage() {
             <CardTitle className="text-base">AI Resolution Suggestions</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-3">
-            {aiSuggestions.map((s, idx) => (
-              <div key={idx} className="rounded-lg bg-blue-50 p-3">
+            {aiSuggestions.map((s) => (
+              <div key={s.suggestion.slice(0, 60)} className="rounded-lg bg-blue-50 p-3">
                 <p className="text-sm text-gray-800">{s.suggestion}</p>
                 <div className="mt-2 flex items-center gap-2">
                   <div className="h-1.5 flex-1 rounded-full bg-gray-200">

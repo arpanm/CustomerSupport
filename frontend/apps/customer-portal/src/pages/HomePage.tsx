@@ -34,7 +34,7 @@ export function HomePage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Link to="/faqs">
+            <Link to="/faq">
               <Button variant="outline" className="w-full">
                 View FAQs
               </Button>

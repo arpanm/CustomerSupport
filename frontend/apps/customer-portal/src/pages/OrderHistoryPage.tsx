@@ -88,8 +88,8 @@ function OrderRow({ order }: { order: Order }) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {order.items.map((item, idx) => (
-                  <tr key={`${order.orderId}-item-${idx}`}>
+                {order.items.map((item) => (
+                  <tr key={`${order.orderId}-${item.productName}`}>
                     <td className="py-1.5 pr-4 text-gray-900">{item.productName}</td>
                     <td className="py-1.5 pr-4 text-gray-600">{item.qty}</td>
                     <td className="py-1.5 text-right text-gray-900">

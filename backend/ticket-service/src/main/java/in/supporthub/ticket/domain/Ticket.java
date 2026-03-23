@@ -35,7 +35,7 @@ import java.util.UUID;
 @DynamicUpdate
 @Getter
 @Setter
-@Builder
+@Builder(toBuilder = true)
 @NoArgsConstructor
 @AllArgsConstructor
 @ToString(onlyExplicitlyIncluded = true)

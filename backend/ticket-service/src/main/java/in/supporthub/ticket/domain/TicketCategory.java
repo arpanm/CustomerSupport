@@ -30,7 +30,7 @@ import java.util.UUID;
 @Table(name = "ticket_categories")
 @Getter
 @Setter
-@Builder
+@Builder(toBuilder = true)
 @NoArgsConstructor
 @AllArgsConstructor
 @ToString(onlyExplicitlyIncluded = true)

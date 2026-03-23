@@ -2,8 +2,8 @@
 > Single source of truth for all tasks, bugs, issues, and decisions.
 > Managed by Claude Code agents. Updated after every task, review, analysis, or deployment.
 
-**Last Updated:** 2026-03-23T18:00:00Z
-**Active Sprint:** Sprint 1 — Core Services
+**Last Updated:** 2026-03-23T20:00:00Z
+**Active Sprint:** Sprint 2 — Integration, Tenant Service, Customer Portal & Infra
 **Project:** SupportHub | Rupantar Technologies
 
 ---
@@ -12,13 +12,13 @@
 
 | Status | Count |
 |--------|-------|
-| 🆕 OPEN | 0 |
-| 🔄 IN_PROGRESS | 0 |
+| 🆕 OPEN | 10 |
+| 🔄 IN_PROGRESS | 6 |
 | 🔍 IN_REVIEW | 23 |
 | ⚠️ BLOCKED | 0 |
 | ✅ DONE | 9 |
 | ❌ CANCELLED | 0 |
-| **TOTAL** | **32** |
+| **TOTAL** | **48** |
 
 ---
 
@@ -545,15 +545,297 @@
 
 ---
 
+## 🔄 IN PROGRESS — Sprint 2
+
+### [FEAT-012] tenant-service — Tenant Onboarding + Config Management
+- **ID:** FEAT-012
+- **Status:** IN_PROGRESS
+- **Priority:** P1-HIGH
+- **Owner:** agent:implementer
+- **Sprint:** 2
+- **Branch:** feature/FEAT-012-tenant-service
+- **Created:** 2026-03-23T19:00:00Z
+#### Scope
+- Tenant entity (id, slug, name, plan, status, branding config, SLA defaults, timezone)
+- Flyway migrations: V1__create_tenants_table.sql, V2__create_tenant_configs_table.sql
+- TenantRepository, TenantConfigRepository
+- TenantService: onboard, getBySlug, getById, updateConfig, suspend, reactivate
+- TenantController: POST /api/v1/admin/tenants, GET /api/v1/tenants/{slug}, PUT /api/v1/admin/tenants/{id}/config, PATCH /api/v1/admin/tenants/{id}/status
+- TenantContextFilter + SecurityConfig (ADMIN-only for write ops)
+- Kafka event: tenant.onboarded (consumed by notification-service to send welcome)
+- Unit tests: TenantServiceTest (onboard, getBySlug, updateConfig, suspend — 6 test cases)
+#### Acceptance Criteria
+- [ ] POST /api/v1/admin/tenants — creates tenant + default config, emits Kafka event
+- [ ] GET /api/v1/tenants/{slug} — resolves tenant by slug (used by gateway for tenant routing)
+- [ ] PUT /api/v1/admin/tenants/{id}/config — updates branding/SLA defaults
+- [ ] PATCH /api/v1/admin/tenants/{id}/status — ACTIVE/SUSPENDED
+- [ ] Tenant isolation via TenantContextHolder + RLS
+- [ ] Unit tests: 6 test cases
+- [ ] No PII logged
+#### Test Results
+- Unit: PENDING (`./mvnw test -pl tenant-service`)
+
+---
+
+### [FEAT-024] customer-portal — Complete Self-Service Flow
+- **ID:** FEAT-024
+- **Status:** IN_PROGRESS
+- **Priority:** P1-HIGH
+- **Owner:** agent:implementer
+- **Sprint:** 2
+- **Branch:** feature/FEAT-024-customer-portal
+- **Created:** 2026-03-23T19:00:00Z
+#### Scope
+- LoginPage: OTP send + verify flow with React Hook Form + TanStack Query
+- TicketListPage: list my tickets, status badges, pagination
+- TicketDetailPage: view ticket + activities + add comment + AI resolution suggestions (read-only)
+- FAQSearchPage: semantic search + self-resolution flow
+- OrderHistoryPage: list orders from order-sync-service
+- NotificationsPage: unread count badge + notification list
+- Zustand authStore with JWT token management
+- TanStack Query for all API calls via customer-sdk
+- Protected routes (redirect to login if no token)
+- customer-portal App.tsx routing
+#### Acceptance Criteria
+- [ ] OTP login flow works end-to-end with auth-service
+- [ ] Ticket list shows all customer tickets with status/priority badges
+- [ ] Ticket detail: view + add comment, display AI resolution suggestions
+- [ ] FAQ search: debounced search input, results with relevance score
+- [ ] Zustand authStore: token persist to localStorage, logout clears state
+- [ ] All pages use TanStack Query (no useState for API data)
+- [ ] No `console.log`, no `any` type, strict TypeScript
+#### Test Results
+- TypeScript: PENDING (`npm run typecheck -w apps/customer-portal`)
+- Lint: PENDING (`npm run lint -w apps/customer-portal`)
+
+---
+
+### [TEST-001] Integration Tests — All Sprint 1 Services
+- **ID:** TEST-001
+- **Status:** IN_PROGRESS
+- **Priority:** P1-HIGH
+- **Owner:** agent:test-engineer
+- **Sprint:** 2
+- **Branch:** feature/TEST-001-integration-tests
+- **Created:** 2026-03-23T19:00:00Z
+- **Addresses:** REVIEW-001, REVIEW-002
+#### Scope (Spring Boot @SpringBootTest + Testcontainers)
+- auth-service: OtpSendIT, OtpVerifyIT, RefreshTokenIT, LogoutIT, AgentLoginIT
+- ticket-service: CreateTicketIT, GetTicketIT, UpdateTicketIT, ResolveTicketIT, TicketStatusMachineIT, SlaBreachIT
+- customer-service: CustomerProfileIT, AddressManagementIT, OrderHistoryIT
+- notification-service: TicketCreatedNotificationIT, StatusChangedNotificationIT
+- ai-service: SentimentAnalysisIT, ResolutionSuggestionIT
+- faq-service: FaqCrudIT, SemanticSearchIT, StrapiWebhookIT
+- order-sync-service: OrderCacheIT, OmsConfigIT
+- reporting-service: DashboardIT, TicketProjectionIT
+#### Acceptance Criteria
+- [ ] Testcontainers: PostgreSQL 16, MongoDB 7, Redis 7, Kafka (Redpanda), Elasticsearch 8
+- [ ] Each service: min 3 integration test cases
+- [ ] @Transactional rollback after each test
+- [ ] Tenant isolation verified in each service IT
+- [ ] All ITs green before merge
+#### Files Created
+- `backend/shared/src/test/java/in/supporthub/shared/test/AbstractIntegrationTest.java`
+- `backend/auth-service/src/test/java/in/supporthub/auth/integration/CustomerAuthIT.java`
+- `backend/auth-service/src/test/java/in/supporthub/auth/integration/AgentAuthIT.java`
+- `backend/ticket-service/src/test/java/in/supporthub/ticket/integration/TicketCrudIT.java`
+- `backend/customer-service/src/test/java/in/supporthub/customer/integration/CustomerProfileIT.java`
+- `backend/notification-service/src/test/java/in/supporthub/notification/integration/NotificationIT.java`
+- `backend/ai-service/src/test/java/in/supporthub/ai/integration/AiServiceIT.java`
+- `backend/faq-service/src/test/java/in/supporthub/faq/integration/FaqCrudIT.java`
+- `backend/order-sync-service/src/test/java/in/supporthub/ordersync/integration/OmsConfigIT.java`
+- `backend/reporting-service/src/test/java/in/supporthub/reporting/integration/ReportingIT.java`
+- `application-test.yml` added for each service above
+- Testcontainers dependencies added to pom.xml for: shared, customer-service, notification-service, ai-service, faq-service, order-sync-service, reporting-service
+#### Test Results
+- Integration: FILES_CREATED — pending execution
+
+---
+
+### [INFRA-006] Terraform AWS Infrastructure Modules
+- **ID:** INFRA-006
+- **Status:** IN_PROGRESS
+- **Priority:** P2-MEDIUM
+- **Owner:** agent:implementer
+- **Sprint:** 2
+- **Branch:** feature/INFRA-006-terraform
+- **Created:** 2026-03-23T19:00:00Z
+- **Updated:** 2026-03-23T20:00:00Z
+#### Scope
+- `infrastructure/terraform/modules/eks/` — EKS cluster, node groups, IRSA
+- `infrastructure/terraform/modules/rds/` — RDS PostgreSQL 16 Multi-AZ, parameter group
+- `infrastructure/terraform/modules/elasticache/` — Redis 7 cluster mode disabled (1 primary + 1 replica)
+- `infrastructure/terraform/modules/msk/` — MSK Kafka 3.x, 3-broker, TLS
+- `infrastructure/terraform/modules/s3/` — S3 bucket + lifecycle policy + KMS encryption
+- `infrastructure/terraform/modules/ecr/` — ECR repo per service + lifecycle policy (keep last 20)
+- `infrastructure/terraform/modules/opensearch/` — OpenSearch Service domain
+- `infrastructure/terraform/envs/dev/` — dev environment wiring (main.tf, variables.tf, outputs.tf, backend.tf)
+- `infrastructure/terraform/envs/staging/` — staging environment
+- `infrastructure/terraform/envs/prod/` — prod environment (multi-AZ, larger instances)
+- `infrastructure/terraform/README.md` — usage documentation
+#### Files Created
+- `infrastructure/terraform/modules/s3/main.tf`, `variables.tf`, `outputs.tf`
+- `infrastructure/terraform/modules/ecr/main.tf`, `variables.tf`, `outputs.tf`
+- `infrastructure/terraform/modules/opensearch/main.tf`, `variables.tf`, `outputs.tf`
+- `infrastructure/terraform/envs/dev/main.tf`, `variables.tf`, `outputs.tf`, `backend.tf`
+- `infrastructure/terraform/envs/staging/main.tf`, `variables.tf`, `outputs.tf`, `backend.tf`
+- `infrastructure/terraform/envs/prod/main.tf`, `variables.tf`, `outputs.tf`, `backend.tf`
+- `infrastructure/terraform/README.md`
+#### Acceptance Criteria
+- [ ] All modules have variables.tf, main.tf, outputs.tf
+- [x] Remote state: S3 + DynamoDB lock configured in backend.tf
+- [x] Tagging: Environment, Project, ManagedBy=terraform on all resources
+- [ ] `terraform validate` passes on each module
+- [x] No hardcoded credentials — all from variables or AWS secrets manager
+#### Test Results
+- Validate: PENDING (`terraform validate` per module)
+
+---
+
+### [INFRA-007] Kubernetes Kustomize Overlays (dev/staging/prod)
+- **ID:** INFRA-007
+- **Status:** IN_PROGRESS
+- **Priority:** P2-MEDIUM
+- **Owner:** agent:implementer
+- **Sprint:** 2
+- **Branch:** feature/INFRA-007-k8s-overlays
+- **Created:** 2026-03-23T19:00:00Z
+- **Updated:** 2026-03-23T20:00:00Z
+#### Scope
+- `infrastructure/k8s/overlays/dev/` — 1 replica, DEBUG log
+- `infrastructure/k8s/overlays/staging/` — 2 replicas, INFO log, Ingress (letsencrypt-staging)
+- `infrastructure/k8s/overlays/prod/` — 3 replicas, WARN log, HPA, PodDisruptionBudget
+- HorizontalPodAutoscaler for api-gateway, ticket-service, ai-service in prod
+- PodDisruptionBudget (minAvailable: 1) for all services in prod
+- Ingress + cert-manager annotations for staging + prod
+#### Files Created
+- `infrastructure/k8s/overlays/dev/kustomization.yaml`, `replica-patch.yaml`, `env-patch.yaml`, `namespace-patch.yaml`
+- `infrastructure/k8s/overlays/staging/kustomization.yaml`, `replica-patch.yaml`, `env-patch.yaml`, `namespace-patch.yaml`, `ingress.yaml`
+- `infrastructure/k8s/overlays/prod/kustomization.yaml`, `replica-patch.yaml`, `env-patch.yaml`, `namespace-patch.yaml`, `ingress.yaml`
+- `infrastructure/k8s/overlays/prod/hpa/api-gateway-hpa.yaml`, `ticket-service-hpa.yaml`, `ai-service-hpa.yaml`
+- `infrastructure/k8s/overlays/prod/pdb/api-gateway-pdb.yaml`, `ticket-service-pdb.yaml`, `auth-service-pdb.yaml`, `customer-service-pdb.yaml`, `notification-service-pdb.yaml`, `faq-service-pdb.yaml`, `reporting-service-pdb.yaml`, `order-sync-service-pdb.yaml`, `tenant-service-pdb.yaml`
+#### Acceptance Criteria
+- [ ] `kubectl kustomize infrastructure/k8s/overlays/dev` passes
+- [ ] `kubectl kustomize infrastructure/k8s/overlays/staging` passes
+- [ ] `kubectl kustomize infrastructure/k8s/overlays/prod` passes
+- [x] HPA configured for api-gateway, ticket-service, ai-service in prod
+- [x] PodDisruptionBudget applied to all prod services
+
+---
+
+### [OBS-001] Observability Stack — Prometheus + Grafana + Loki + Langfuse
+- **ID:** OBS-001
+- **Status:** IN_PROGRESS
+- **Priority:** P2-MEDIUM
+- **Owner:** agent:implementer
+- **Sprint:** 2
+- **Branch:** feature/OBS-001-observability
+- **Created:** 2026-03-23T19:00:00Z
+#### Scope
+- `infrastructure/docker/docker-compose-obs.yml` — Prometheus, Grafana, Loki, Promtail, Langfuse
+- `infrastructure/observability/prometheus/prometheus.yml` — scrape configs for all 11 services
+- `infrastructure/observability/grafana/dashboards/supporthub-overview.json` — service health dashboard
+- `infrastructure/observability/grafana/dashboards/ticket-metrics.json` — ticket volume/SLA dashboard
+- `infrastructure/observability/grafana/provisioning/` — datasource + dashboard provisioning
+- `infrastructure/observability/loki/loki-config.yml` — log aggregation config
+- Micrometer Spring Boot actuator endpoints already in application.yml — verify scrape works
+- Langfuse self-hosted for AI interaction tracing
+#### Acceptance Criteria
+- [ ] All 11 services scraped by Prometheus on /actuator/prometheus
+- [ ] Grafana SupportHub Overview dashboard: request rate, error rate, p99 latency per service
+- [ ] Grafana Ticket dashboard: tickets created/resolved per hour, SLA breach rate
+- [ ] Loki + Promtail collecting logs from all services with tenant_id label
+- [ ] Langfuse container in docker-compose for AI call tracing
+
+---
+
 ## 📋 BACKLOG — Sprint 2
 
-### Sprint 2 priorities:
-- INFRA-006: Terraform modules (EKS, RDS, ElastiCache, MSK, S3)
-- TEST-001: Integration tests for all Sprint 1 services (addresses REVIEW-001, REVIEW-002)
-- FEAT-024: customer-portal — self-service ticket creation flow + FAQ self-resolution
-- FEAT-025: E2E Playwright tests (ticket creation, agent resolution, FAQ self-resolve flows)
-- SEC-001: OWASP dependency scan for all Sprint 1 services — output to TODO.md
-- ANAL-001: SpotBugs + Checkstyle scan for Sprint 1 services
+### Sprint 2 Open Tasks:
+
+### [FEAT-025] E2E Playwright Tests — ticket creation, resolution, FAQ self-resolve
+- **ID:** FEAT-025
+- **Status:** OPEN
+- **Priority:** P2-MEDIUM
+- **Sprint:** 2
+- **Created:** 2026-03-23T19:00:00Z
+#### Scope
+- `frontend/e2e/ticket-creation.spec.ts` — customer creates ticket, sees confirmation
+- `frontend/e2e/agent-resolution.spec.ts` — agent views queue, resolves ticket, customer notified
+- `frontend/e2e/faq-self-resolve.spec.ts` — customer searches FAQ, finds answer, deflects ticket creation
+- `frontend/e2e/otp-login.spec.ts` — customer OTP login flow end-to-end
+- `frontend/playwright.config.ts` — base URL, retries, parallel workers
+#### Acceptance Criteria
+- [ ] All 4 spec files pass against local docker-compose stack
+- [ ] Screenshots on failure saved to `frontend/e2e/screenshots/`
+- [ ] Page Object Model pattern used (no raw locators in tests)
+
+---
+
+### [SEC-001] OWASP CVE Dependency Scan — All Sprint 1 Services
+- **ID:** SEC-001
+- **Status:** OPEN
+- **Priority:** P1-HIGH
+- **Sprint:** 2
+- **Created:** 2026-03-23T19:00:00Z
+#### Scope
+- Run `./mvnw dependency-check:check` on all 11 backend services
+- Capture all CRITICAL/HIGH CVEs → create SEC-NNN tasks for each
+- Run `npm audit --audit-level=high` on all frontend workspaces
+- No CRITICAL CVEs unresolved before any merge to main
+#### Acceptance Criteria
+- [ ] OWASP scan completed on all backend services
+- [ ] npm audit completed on all frontend workspaces
+- [ ] All CRITICAL CVEs have SEC-NNN tasks created in TODO.md
+- [ ] Report saved to `security/owasp-report-sprint2.md`
+
+---
+
+### [ANAL-001] Static Analysis — SpotBugs + Checkstyle + PMD
+- **ID:** ANAL-001
+- **Status:** OPEN
+- **Priority:** P2-MEDIUM
+- **Sprint:** 2
+- **Created:** 2026-03-23T19:00:00Z
+#### Scope
+- Run `./mvnw checkstyle:check spotbugs:check pmd:check` on all services
+- Capture HIGH/MEDIUM findings → create ANAL-NNN tasks for each
+- ESLint check on all frontend workspaces
+#### Acceptance Criteria
+- [ ] Checkstyle: 0 violations in service layer
+- [ ] SpotBugs: 0 HIGH findings
+- [ ] PMD: 0 HIGH findings
+- [ ] ESLint: 0 errors across frontend workspaces
+
+---
+
+### [FEAT-026] customer-portal — PWA + Offline Support + Push Notifications
+- **ID:** FEAT-026
+- **Status:** OPEN
+- **Priority:** P3-LOW
+- **Sprint:** 2
+- **Created:** 2026-03-23T19:00:00Z
+#### Scope
+- Service worker with Workbox (cache-first for static, network-first for API)
+- Web Push notification subscription → stored in notification-service
+- Offline ticket list from IndexedDB cache
+- Install prompt (PWA manifest)
+
+---
+
+### [FEAT-027] reporting-service — Grafana-compatible metrics endpoint + tenant dashboard API
+- **ID:** FEAT-027
+- **Status:** OPEN
+- **Priority:** P3-LOW
+- **Sprint:** 2
+- **Created:** 2026-03-23T19:00:00Z
+#### Scope
+- `/api/v1/reports/export` — CSV export of ticket data (streaming)
+- `/api/v1/reports/sla-compliance` — SLA compliance % per category per period
+- `/api/v1/reports/agent-performance` — tickets resolved, avg resolution time per agent
+- Elasticsearch aggregation queries via existing DashboardService
+
+---
 
 ---
 

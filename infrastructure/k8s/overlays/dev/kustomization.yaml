@@ -1,0 +1,9 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: supporthub-dev
+bases:
+  - ../../base
+patches:
+  - path: replica-patch.yaml
+  - path: env-patch.yaml
+  - path: namespace-patch.yaml

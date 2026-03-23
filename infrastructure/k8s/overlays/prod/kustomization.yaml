@@ -1,0 +1,23 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: supporthub-prod
+bases:
+  - ../../base
+patches:
+  - path: replica-patch.yaml
+  - path: env-patch.yaml
+  - path: namespace-patch.yaml
+resources:
+  - ingress.yaml
+  - hpa/api-gateway-hpa.yaml
+  - hpa/ticket-service-hpa.yaml
+  - hpa/ai-service-hpa.yaml
+  - pdb/api-gateway-pdb.yaml
+  - pdb/ticket-service-pdb.yaml
+  - pdb/auth-service-pdb.yaml
+  - pdb/customer-service-pdb.yaml
+  - pdb/notification-service-pdb.yaml
+  - pdb/faq-service-pdb.yaml
+  - pdb/reporting-service-pdb.yaml
+  - pdb/order-sync-service-pdb.yaml
+  - pdb/tenant-service-pdb.yaml

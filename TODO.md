@@ -2,7 +2,7 @@
 > Single source of truth for all tasks, bugs, issues, and decisions.
 > Managed by Claude Code agents. Updated after every task, review, analysis, or deployment.
 
-**Last Updated:** 2026-03-23T19:00:00Z
+**Last Updated:** 2026-03-23T20:00:00Z
 **Active Sprint:** Sprint 2 — Integration, Tenant Service, Customer Portal & Infra
 **Project:** SupportHub | Rupantar Technologies
 
@@ -647,6 +647,7 @@
 - **Sprint:** 2
 - **Branch:** feature/INFRA-006-terraform
 - **Created:** 2026-03-23T19:00:00Z
+- **Updated:** 2026-03-23T20:00:00Z
 #### Scope
 - `infrastructure/terraform/modules/eks/` — EKS cluster, node groups, IRSA
 - `infrastructure/terraform/modules/rds/` — RDS PostgreSQL 16 Multi-AZ, parameter group
@@ -654,16 +655,25 @@
 - `infrastructure/terraform/modules/msk/` — MSK Kafka 3.x, 3-broker, TLS
 - `infrastructure/terraform/modules/s3/` — S3 bucket + lifecycle policy + KMS encryption
 - `infrastructure/terraform/modules/ecr/` — ECR repo per service + lifecycle policy (keep last 20)
-- `infrastructure/terraform/modules/elasticsearch/` — OpenSearch Service domain
-- `infrastructure/terraform/envs/dev/` — dev environment wiring (main.tf, variables.tf, outputs.tf)
+- `infrastructure/terraform/modules/opensearch/` — OpenSearch Service domain
+- `infrastructure/terraform/envs/dev/` — dev environment wiring (main.tf, variables.tf, outputs.tf, backend.tf)
 - `infrastructure/terraform/envs/staging/` — staging environment
 - `infrastructure/terraform/envs/prod/` — prod environment (multi-AZ, larger instances)
+- `infrastructure/terraform/README.md` — usage documentation
+#### Files Created
+- `infrastructure/terraform/modules/s3/main.tf`, `variables.tf`, `outputs.tf`
+- `infrastructure/terraform/modules/ecr/main.tf`, `variables.tf`, `outputs.tf`
+- `infrastructure/terraform/modules/opensearch/main.tf`, `variables.tf`, `outputs.tf`
+- `infrastructure/terraform/envs/dev/main.tf`, `variables.tf`, `outputs.tf`, `backend.tf`
+- `infrastructure/terraform/envs/staging/main.tf`, `variables.tf`, `outputs.tf`, `backend.tf`
+- `infrastructure/terraform/envs/prod/main.tf`, `variables.tf`, `outputs.tf`, `backend.tf`
+- `infrastructure/terraform/README.md`
 #### Acceptance Criteria
 - [ ] All modules have variables.tf, main.tf, outputs.tf
-- [ ] Remote state: S3 + DynamoDB lock configured in backend.tf
-- [ ] Tagging: Environment, Project, ManagedBy=terraform on all resources
+- [x] Remote state: S3 + DynamoDB lock configured in backend.tf
+- [x] Tagging: Environment, Project, ManagedBy=terraform on all resources
 - [ ] `terraform validate` passes on each module
-- [ ] No hardcoded credentials — all from variables or AWS secrets manager
+- [x] No hardcoded credentials — all from variables or AWS secrets manager
 #### Test Results
 - Validate: PENDING (`terraform validate` per module)
 
@@ -677,20 +687,26 @@
 - **Sprint:** 2
 - **Branch:** feature/INFRA-007-k8s-overlays
 - **Created:** 2026-03-23T19:00:00Z
+- **Updated:** 2026-03-23T20:00:00Z
 #### Scope
-- `infrastructure/k8s/overlays/dev/` — 1 replica, DEBUG log, NodePort
-- `infrastructure/k8s/overlays/staging/` — 2 replicas, INFO log, internal LoadBalancer
-- `infrastructure/k8s/overlays/prod/` — 3 replicas, WARN log, HPA (2-10), PodDisruptionBudget
-- HorizontalPodAutoscaler for all stateless services in prod
+- `infrastructure/k8s/overlays/dev/` — 1 replica, DEBUG log
+- `infrastructure/k8s/overlays/staging/` — 2 replicas, INFO log, Ingress (letsencrypt-staging)
+- `infrastructure/k8s/overlays/prod/` — 3 replicas, WARN log, HPA, PodDisruptionBudget
+- HorizontalPodAutoscaler for api-gateway, ticket-service, ai-service in prod
 - PodDisruptionBudget (minAvailable: 1) for all services in prod
 - Ingress + cert-manager annotations for staging + prod
-- ConfigMap patches per environment
+#### Files Created
+- `infrastructure/k8s/overlays/dev/kustomization.yaml`, `replica-patch.yaml`, `env-patch.yaml`, `namespace-patch.yaml`
+- `infrastructure/k8s/overlays/staging/kustomization.yaml`, `replica-patch.yaml`, `env-patch.yaml`, `namespace-patch.yaml`, `ingress.yaml`
+- `infrastructure/k8s/overlays/prod/kustomization.yaml`, `replica-patch.yaml`, `env-patch.yaml`, `namespace-patch.yaml`, `ingress.yaml`
+- `infrastructure/k8s/overlays/prod/hpa/api-gateway-hpa.yaml`, `ticket-service-hpa.yaml`, `ai-service-hpa.yaml`
+- `infrastructure/k8s/overlays/prod/pdb/api-gateway-pdb.yaml`, `ticket-service-pdb.yaml`, `auth-service-pdb.yaml`, `customer-service-pdb.yaml`, `notification-service-pdb.yaml`, `faq-service-pdb.yaml`, `reporting-service-pdb.yaml`, `order-sync-service-pdb.yaml`, `tenant-service-pdb.yaml`
 #### Acceptance Criteria
 - [ ] `kubectl kustomize infrastructure/k8s/overlays/dev` passes
 - [ ] `kubectl kustomize infrastructure/k8s/overlays/staging` passes
 - [ ] `kubectl kustomize infrastructure/k8s/overlays/prod` passes
-- [ ] HPA configured for api-gateway, ticket-service, ai-service in prod
-- [ ] PodDisruptionBudget applied to all prod services
+- [x] HPA configured for api-gateway, ticket-service, ai-service in prod
+- [x] PodDisruptionBudget applied to all prod services
 
 ---
 

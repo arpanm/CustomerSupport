@@ -1,0 +1,118 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    environment: dev
+    project: supporthub
+
+scrape_configs:
+
+  # ============================================================
+  # api-gateway — port 8080
+  # ============================================================
+  - job_name: 'api-gateway'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['host.docker.internal:8080']
+        labels:
+          service: 'api-gateway'
+
+  # ============================================================
+  # auth-service — port 8081
+  # ============================================================
+  - job_name: 'auth-service'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['host.docker.internal:8081']
+        labels:
+          service: 'auth-service'
+
+  # ============================================================
+  # ticket-service — port 8082
+  # ============================================================
+  - job_name: 'ticket-service'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['host.docker.internal:8082']
+        labels:
+          service: 'ticket-service'
+
+  # ============================================================
+  # customer-service — port 8083
+  # ============================================================
+  - job_name: 'customer-service'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['host.docker.internal:8083']
+        labels:
+          service: 'customer-service'
+
+  # ============================================================
+  # ai-service — port 8084
+  # ============================================================
+  - job_name: 'ai-service'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['host.docker.internal:8084']
+        labels:
+          service: 'ai-service'
+
+  # ============================================================
+  # notification-service — port 8085
+  # ============================================================
+  - job_name: 'notification-service'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['host.docker.internal:8085']
+        labels:
+          service: 'notification-service'
+
+  # ============================================================
+  # faq-service — port 8086
+  # ============================================================
+  - job_name: 'faq-service'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['host.docker.internal:8086']
+        labels:
+          service: 'faq-service'
+
+  # ============================================================
+  # reporting-service — port 8087
+  # ============================================================
+  - job_name: 'reporting-service'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['host.docker.internal:8087']
+        labels:
+          service: 'reporting-service'
+
+  # ============================================================
+  # tenant-service — port 8088
+  # ============================================================
+  - job_name: 'tenant-service'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['host.docker.internal:8088']
+        labels:
+          service: 'tenant-service'
+
+  # ============================================================
+  # order-sync-service — port 8089
+  # ============================================================
+  - job_name: 'order-sync-service'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['host.docker.internal:8089']
+        labels:
+          service: 'order-sync-service'
+
+  # ============================================================
+  # mcp-server — port 8090
+  # ============================================================
+  - job_name: 'mcp-server'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['host.docker.internal:8090']
+        labels:
+          service: 'mcp-server'

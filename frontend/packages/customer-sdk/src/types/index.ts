@@ -1,32 +1,9 @@
-export enum TicketStatus {
-  OPEN = 'OPEN',
-  IN_PROGRESS = 'IN_PROGRESS',
-  WAITING_FOR_CUSTOMER = 'WAITING_FOR_CUSTOMER',
-  RESOLVED = 'RESOLVED',
-  CLOSED = 'CLOSED',
-}
+export type TicketStatus =
+  | 'OPEN' | 'PENDING_AGENT_RESPONSE' | 'PENDING_CUSTOMER_RESPONSE'
+  | 'IN_PROGRESS' | 'ESCALATED' | 'RESOLVED' | 'CLOSED' | 'REOPENED';
 
-export enum TicketPriority {
-  LOW = 'LOW',
-  MEDIUM = 'MEDIUM',
-  HIGH = 'HIGH',
-  URGENT = 'URGENT',
-}
-
-export enum ActivityType {
-  COMMENT = 'COMMENT',
-  STATUS_CHANGE = 'STATUS_CHANGE',
-  ASSIGNMENT = 'ASSIGNMENT',
-  NOTE = 'NOTE',
-}
-
-export interface Customer {
-  id: string;
-  name: string;
-  maskedPhone: string;
-  tenantId: string;
-  createdAt: string;
-}
+export type Priority = 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
+export type Channel = 'web' | 'mobile' | 'whatsapp' | 'email';
 
 export interface Ticket {
   id: string;
@@ -34,39 +11,46 @@ export interface Ticket {
   title: string;
   description: string;
   status: TicketStatus;
-  priority: TicketPriority;
-  tenantId: string;
-  customerId: string;
-  assignedAgentId?: string;
+  priority: Priority;
+  channel: Channel;
   categoryId: string;
-  subCategoryId?: string;
-  orderId?: string;
-  channel: string;
+  customerId: string;
   createdAt: string;
   updatedAt: string;
   resolvedAt?: string;
+  slaBreached: boolean;
 }
 
 export interface TicketActivity {
   id: string;
   ticketId: string;
-  type: ActivityType;
+  activityType: 'COMMENT' | 'STATUS_CHANGE' | 'ASSIGNMENT' | 'RESOLUTION';
   content: string;
-  authorId: string;
-  authorType: 'CUSTOMER' | 'AGENT' | 'SYSTEM';
+  isInternal: boolean;
+  actorId: string;
+  actorType: 'CUSTOMER' | 'AGENT';
   createdAt: string;
 }
 
-export interface FAQ {
+export interface FaqEntry {
   id: string;
   question: string;
   answer: string;
-  categorySlug: string;
-  tenantId: string;
-  viewCount: number;
-  helpful?: boolean;
+  categoryId?: string;
+  tags: string[];
+}
+
+export interface FaqSearchResult {
+  results: Array<{ id: string; question: string; answerExcerpt: string; score: number }>;
+}
+
+export interface Notification {
+  id: string;
+  channel: 'SMS' | 'EMAIL' | 'IN_APP' | 'WHATSAPP';
+  subject: string;
+  content: string;
+  status: 'PENDING' | 'SENT' | 'DELIVERED' | 'FAILED';
   createdAt: string;
-  updatedAt: string;
 }
 
 export interface CreateTicketRequest {
@@ -75,48 +59,33 @@ export interface CreateTicketRequest {
   categoryId: string;
   subCategoryId?: string;
   orderId?: string;
-  channel: string;
-}
-
-export interface AddActivityRequest {
-  content: string;
-  type: ActivityType;
+  channel?: Channel;
 }
 
 export interface PaginatedResponse<T> {
   data: T[];
-  pagination: {
-    cursor?: string;
-    hasMore: boolean;
-    total?: number;
-    limit: number;
-  };
-  meta: ResponseMeta;
+  cursor?: string;
+  hasMore: boolean;
+  total?: number;
 }
 
 export interface ApiResponse<T> {
   data: T;
-  meta: ResponseMeta;
-}
-
-export interface ResponseMeta {
-  requestId: string;
-  timestamp: string;
-  apiVersion: string;
+  meta: { requestId: string; timestamp: string; apiVersion: string };
 }
 
 export interface ApiError {
-  error: {
-    code: string;
-    message: string;
-    details?: Record<string, unknown>;
-    traceId?: string;
-  };
-  meta: ResponseMeta;
+  error: { code: string; message: string; details?: Record<string, unknown>; traceId?: string };
+  meta: { requestId: string; timestamp: string; apiVersion: string };
 }
 
-export interface SupportHubClientConfig {
-  baseUrl: string;
-  tenantId: string;
-  authToken?: string;
+export class SupportHubError extends Error {
+  constructor(
+    public readonly code: string,
+    message: string,
+    public readonly statusCode?: number
+  ) {
+    super(message);
+    this.name = 'SupportHubError';
+  }
 }

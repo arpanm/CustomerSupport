@@ -9,15 +9,25 @@ spring:
       server:
         name: supporthub-mcp
         version: 1.0.0
+        transport: sse
 
 server:
   port: 8090
+
+jwt:
+  public-key-location: ${JWT_PUBLIC_KEY_LOCATION:classpath:keys/public.pem}
+
+ticket-service:
+  base-url: ${TICKET_SERVICE_URL:http://ticket-service:8082}
+
+faq-service:
+  base-url: ${FAQ_SERVICE_URL:http://faq-service:8086}
 
 management:
   endpoints:
     web:
       exposure:
-        include: health,info,prometheus
+        include: health,info,metrics
   endpoint:
     health:
       show-details: when-authorized

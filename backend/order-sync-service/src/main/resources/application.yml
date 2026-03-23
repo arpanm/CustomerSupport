@@ -4,25 +4,34 @@ spring:
   threads:
     virtual:
       enabled: true
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/supporthub}
+    username: ${DB_USER:supporthub}
+    password: ${DB_PASS:supporthub}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+  flyway:
+    enabled: true
   data:
-    mongodb:
-      uri: ${MONGODB_URI:mongodb://localhost:27017/supporthub}
-  kafka:
-    bootstrap-servers: ${KAFKA_SERVERS:localhost:9092}
-    consumer:
-      group-id: order-sync-service
-      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
-      auto-offset-reset: earliest
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
 
 server:
   port: 8089
+
+encryption:
+  secret-key: ${ENCRYPTION_SECRET_KEY:}
 
 management:
   endpoints:
     web:
       exposure:
-        include: health,info,prometheus
+        include: health,info,metrics
   endpoint:
     health:
       show-details: when-authorized
@@ -30,3 +39,13 @@ management:
     export:
       prometheus:
         enabled: true
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+
+logging:
+  level:
+    in.supporthub.ordersync: INFO

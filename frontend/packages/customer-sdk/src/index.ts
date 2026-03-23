@@ -1,17 +1,4 @@
-export { SupportHubClient, SupportHubClientError } from './client.js';
-export type {
-  SupportHubClientConfig,
-  Ticket,
-  TicketActivity,
-  TicketStatus,
-  TicketPriority,
-  ActivityType,
-  Customer,
-  FAQ,
-  CreateTicketRequest,
-  AddActivityRequest,
-  PaginatedResponse,
-  ApiResponse,
-  ApiError,
-  ResponseMeta,
-} from './types/index.js';
+export { SupportHubClient } from './client.js';
+export type { SupportHubClientConfig } from './client.js';
+export * from './types/index.js';
+export { useTickets } from './hooks/useTickets.js';

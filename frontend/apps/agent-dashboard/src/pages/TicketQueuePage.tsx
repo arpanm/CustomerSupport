@@ -1,28 +1,12 @@
-import { useQuery } from '@tanstack/react-query';
+import { useEffect } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, TicketStatusBadge, Spinner, Badge } from '@supporthub/ui';
 import { useAuthStore } from '../store/authStore.js';
-
-interface TicketSummary {
-  id: string;
-  ticketNumber: string;
-  title: string;
-  status: string;
-  priority: string;
-  customerName: string;
-  assignedAgentId: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
-interface TicketsResponse {
-  data: TicketSummary[];
-  pagination: {
-    cursor?: string;
-    hasMore: boolean;
-    total?: number;
-    limit: number;
-  };
-}
+import { useTicketFilterStore } from '../store/ticketStore.js';
+import { useWebSocketStore } from '../store/websocketStore.js';
+import { fetchTickets } from '../api/ticketApi.js';
+import type { TicketSummary } from '../api/ticketApi.js';
 
 const PRIORITY_VARIANT: Record<string, 'default' | 'destructive' | 'secondary' | 'outline'> = {
   URGENT: 'destructive',
@@ -31,36 +15,146 @@ const PRIORITY_VARIANT: Record<string, 'default' | 'destructive' | 'secondary' |
   LOW: 'secondary',
 };
 
-function useTicketQueue() {
-  const token = useAuthStore((state) => state.token);
+const SENTIMENT_EMOJI: Record<string, string> = {
+  very_negative: '😡',
+  negative: '😞',
+  neutral: '😐',
+  positive: '😊',
+  very_positive: '😄',
+};
 
-  return useQuery<TicketsResponse>({
-    queryKey: ['tickets', 'queue'],
-    queryFn: async () => {
-      const response = await fetch(
-        `${import.meta.env.VITE_API_BASE_URL}/api/v1/tickets?limit=25&sort=createdAt&direction=desc`,
-        {
-          headers: {
-            Authorization: `Bearer ${token ?? ''}`,
-            'X-Tenant-ID': import.meta.env.VITE_TENANT_ID,
-          },
-        },
-      );
+function TicketFilters() {
+  const { filter, setFilter, resetFilter } = useTicketFilterStore();
 
-      if (!response.ok) {
-        throw new Error(`Failed to fetch tickets: ${response.status.toString()}`);
-      }
+  return (
+    <div className="flex flex-wrap items-center gap-3 rounded-lg border border-gray-200 bg-white p-3">
+      <input
+        type="text"
+        placeholder="Search tickets..."
+        value={filter.search}
+        onChange={(e) => { setFilter({ search: e.target.value }); }}
+        className="w-48 rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+      />
+      <select
+        value={filter.status}
+        onChange={(e) => { setFilter({ status: e.target.value as typeof filter.status }); }}
+        className="rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+      >
+        <option value="">All Statuses</option>
+        <option value="OPEN">Open</option>
+        <option value="IN_PROGRESS">In Progress</option>
+        <option value="PENDING_AGENT_RESPONSE">Pending Response</option>
+        <option value="ESCALATED">Escalated</option>
+        <option value="RESOLVED">Resolved</option>
+      </select>
+      <select
+        value={filter.priority}
+        onChange={(e) => { setFilter({ priority: e.target.value as typeof filter.priority }); }}
+        className="rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+      >
+        <option value="">All Priorities</option>
+        <option value="URGENT">Urgent</option>
+        <option value="HIGH">High</option>
+        <option value="MEDIUM">Medium</option>
+        <option value="LOW">Low</option>
+      </select>
+      <label className="flex items-center gap-2 text-sm text-gray-700">
+        <input
+          type="checkbox"
+          checked={filter.assignedToMe}
+          onChange={(e) => { setFilter({ assignedToMe: e.target.checked }); }}
+          className="rounded border-gray-300"
+        />
+        Assigned to me
+      </label>
+      <button onClick={resetFilter} className="text-sm text-blue-600 hover:underline">
+        Clear filters
+      </button>
+    </div>
+  );
+}
 
-      return response.json() as Promise<TicketsResponse>;
-    },
-    enabled: token !== null,
-    staleTime: 30_000,
-    refetchInterval: 60_000,
-  });
+function TicketCard({ ticket }: { ticket: TicketSummary }) {
+  return (
+    <Link to={`/tickets/${ticket.ticketNumber}`}>
+      <Card className="cursor-pointer transition-all hover:border-blue-200 hover:shadow-md">
+        <CardHeader className="pb-2">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0 flex-1">
+              <CardTitle className="truncate text-base">{ticket.title}</CardTitle>
+              <p className="mt-0.5 text-xs text-gray-500">
+                {ticket.ticketNumber}
+                {ticket.categoryName && (
+                  <span className="ml-2 text-gray-400">• {ticket.categoryName}</span>
+                )}
+              </p>
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              {ticket.sentimentLabel != null && (
+                <span title={ticket.sentimentLabel} className="text-base">
+                  {SENTIMENT_EMOJI[ticket.sentimentLabel] ?? ''}
+                </span>
+              )}
+              {ticket.slaBreached && (
+                <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700">
+                  SLA Breach
+                </span>
+              )}
+              <Badge variant={PRIORITY_VARIANT[ticket.priority] ?? 'secondary'}>
+                {ticket.priority}
+              </Badge>
+              <TicketStatusBadge status={ticket.status} />
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="pt-0">
+          <div className="flex items-center justify-between text-xs text-gray-500">
+            <span>
+              {ticket.customerName}
+              {ticket.assignedAgentId != null && (
+                <span className="ml-2 text-blue-500">• Assigned</span>
+              )}
+            </span>
+            <span>{new Date(ticket.createdAt).toLocaleDateString('en-IN')}</span>
+          </div>
+        </CardContent>
+      </Card>
+    </Link>
+  );
 }
 
 export function TicketQueuePage() {
-  const { data, isLoading, isError, error } = useTicketQueue();
+  const { token, user } = useAuthStore();
+  const { filter } = useTicketFilterStore();
+  const { lastTicketUpdate, connect } = useWebSocketStore();
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (token != null && user?.tenantId != null) {
+      connect(user.tenantId, token);
+    }
+  }, [token, user?.tenantId, connect]);
+
+  useEffect(() => {
+    if (lastTicketUpdate != null) {
+      void queryClient.invalidateQueries({ queryKey: ['tickets', 'queue'] });
+    }
+  }, [lastTicketUpdate, queryClient]);
+
+  const { data, isLoading, isError, error } = useQuery({
+    queryKey: ['tickets', 'queue', filter],
+    queryFn: () =>
+      fetchTickets(token ?? '', {
+        status: filter.status || undefined,
+        priority: filter.priority || undefined,
+        assignedToMe: filter.assignedToMe,
+        search: filter.search || undefined,
+        agentId: user?.id,
+      }),
+    enabled: token != null,
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+  });
 
   if (isLoading) {
     return (
@@ -80,49 +174,36 @@ export function TicketQueuePage() {
   }
 
   const tickets = data?.data ?? [];
+  const total = data?.pagination.total ?? tickets.length;
 
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold text-gray-900">Ticket Queue</h2>
         <span className="text-sm text-gray-500">
-          {tickets.length} ticket{tickets.length !== 1 ? 's' : ''}
+          {total} ticket{total !== 1 ? 's' : ''}
         </span>
       </div>
+
+      <TicketFilters />
 
       {tickets.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center text-gray-500">
-            <p className="text-lg font-medium">No tickets in queue</p>
-            <p className="mt-1 text-sm">All caught up!</p>
+            <p className="text-lg font-medium">No tickets found</p>
+            <p className="mt-1 text-sm">Try adjusting your filters</p>
           </CardContent>
         </Card>
       ) : (
         <div className="flex flex-col gap-3">
           {tickets.map((ticket) => (
-            <Card key={ticket.id} className="cursor-pointer transition-shadow hover:shadow-md">
-              <CardHeader className="pb-2">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="min-w-0 flex-1">
-                    <CardTitle className="truncate text-base">{ticket.title}</CardTitle>
-                    <p className="mt-0.5 text-xs text-gray-500">{ticket.ticketNumber}</p>
-                  </div>
-                  <div className="flex shrink-0 items-center gap-2">
-                    <Badge variant={PRIORITY_VARIANT[ticket.priority] ?? 'secondary'}>
-                      {ticket.priority}
-                    </Badge>
-                    <TicketStatusBadge status={ticket.status} />
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="pt-0">
-                <div className="flex items-center justify-between text-xs text-gray-500">
-                  <span>Customer: {ticket.customerName}</span>
-                  <span>{new Date(ticket.createdAt).toLocaleDateString('en-IN')}</span>
-                </div>
-              </CardContent>
-            </Card>
+            <TicketCard key={ticket.id} ticket={ticket} />
           ))}
+          {data?.pagination.hasMore === true && (
+            <button className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
+              Load more
+            </button>
+          )}
         </div>
       )}
     </div>

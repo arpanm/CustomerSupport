@@ -1,168 +1,120 @@
 import type {
-  SupportHubClientConfig,
+  ApiResponse,
+  ApiError,
   Ticket,
   TicketActivity,
-  FAQ,
+  FaqEntry,
+  FaqSearchResult,
+  Notification,
   CreateTicketRequest,
-  AddActivityRequest,
-  ApiResponse,
   PaginatedResponse,
 } from './types/index.js';
+import { SupportHubError } from './types/index.js';
 
-export class SupportHubClientError extends Error {
-  constructor(
-    public readonly code: string,
-    message: string,
-    public readonly status: number,
-    public readonly traceId?: string,
-  ) {
-    super(message);
-    this.name = 'SupportHubClientError';
-  }
+export interface SupportHubClientConfig {
+  baseUrl: string;
+  tenantId: string;
+  getAccessToken: () => Promise<string> | string;
 }
 
 export class SupportHubClient {
-  private readonly baseUrl: string;
-  private readonly tenantId: string;
-  private authToken?: string;
+  private readonly config: SupportHubClientConfig;
 
   constructor(config: SupportHubClientConfig) {
-    this.baseUrl = config.baseUrl.replace(/\/$/, '');
-    this.tenantId = config.tenantId;
-    this.authToken = config.authToken;
+    this.config = config;
   }
 
-  setAuthToken(token: string): void {
-    this.authToken = token;
-  }
-
-  clearAuthToken(): void {
-    this.authToken = undefined;
-  }
-
-  private buildHeaders(): HeadersInit {
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      'X-Tenant-ID': this.tenantId,
-    };
-
-    if (this.authToken !== undefined && this.authToken !== '') {
-      headers['Authorization'] = `Bearer ${this.authToken}`;
-    }
-
-    return headers;
-  }
-
-  private async request<T>(path: string, init?: RequestInit): Promise<T> {
-    const url = `${this.baseUrl}/api/v1${path}`;
-    const response = await fetch(url, {
-      ...init,
+  private async request<T>(path: string, options?: RequestInit): Promise<T> {
+    const token = await this.config.getAccessToken();
+    const response = await fetch(`${this.config.baseUrl}${path}`, {
+      ...options,
       headers: {
-        ...this.buildHeaders(),
-        ...(init?.headers ?? {}),
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+        'X-Tenant-ID': this.config.tenantId,
+        ...(options?.headers ?? {}),
       },
     });
 
     if (!response.ok) {
-      const errorBody = await response.json().catch(() => ({
-        error: { code: 'UNKNOWN_ERROR', message: 'An unknown error occurred' },
-      })) as { error: { code: string; message: string; traceId?: string } };
-
-      throw new SupportHubClientError(
-        errorBody.error.code,
-        errorBody.error.message,
-        response.status,
-        errorBody.error.traceId,
-      );
+      const error: ApiError = await response.json().catch(() => ({
+        error: { code: 'UNKNOWN_ERROR', message: `HTTP ${response.status}` },
+        meta: { requestId: '', timestamp: new Date().toISOString(), apiVersion: 'v1' },
+      }));
+      throw new SupportHubError(error.error.code, error.error.message, response.status);
     }
 
-    return response.json() as Promise<T>;
+    const body: ApiResponse<T> = await response.json();
+    return body.data;
   }
 
-  async createTicket(request: CreateTicketRequest): Promise<ApiResponse<Ticket>> {
-    return this.request<ApiResponse<Ticket>>('/tickets', {
+  // Ticket operations
+  async createTicket(req: CreateTicketRequest): Promise<Ticket> {
+    return this.request<Ticket>('/api/v1/tickets', {
       method: 'POST',
-      body: JSON.stringify(request),
+      body: JSON.stringify(req),
     });
   }
 
-  async getTickets(params?: {
-    cursor?: string;
-    limit?: number;
-    status?: string;
-  }): Promise<PaginatedResponse<Ticket>> {
-    const searchParams = new URLSearchParams();
-    if (params?.cursor !== undefined && params.cursor !== '') {
-      searchParams.set('cursor', params.cursor);
-    }
-    if (params?.limit !== undefined) {
-      searchParams.set('limit', String(params.limit));
-    }
-    if (params?.status !== undefined && params.status !== '') {
-      searchParams.set('status', params.status);
-    }
-
-    const query = searchParams.toString();
-    const path = query !== '' ? `/tickets?${query}` : '/tickets';
-    return this.request<PaginatedResponse<Ticket>>(path);
+  async getTicket(ticketNumber: string): Promise<Ticket> {
+    return this.request<Ticket>(`/api/v1/tickets/${ticketNumber}`);
   }
 
-  async getTicket(ticketNumber: string): Promise<ApiResponse<Ticket>> {
-    return this.request<ApiResponse<Ticket>>(`/tickets/${ticketNumber}`);
+  async listMyTickets(cursor?: string, limit = 25): Promise<PaginatedResponse<Ticket>> {
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (cursor) params.set('cursor', cursor);
+    return this.request<PaginatedResponse<Ticket>>(`/api/v1/tickets/me?${params}`);
   }
 
-  async addActivity(
-    ticketId: string,
-    request: AddActivityRequest,
-  ): Promise<ApiResponse<TicketActivity>> {
-    return this.request<ApiResponse<TicketActivity>>(`/tickets/${ticketId}/activities`, {
+  async addComment(ticketNumber: string, content: string): Promise<TicketActivity> {
+    return this.request<TicketActivity>(`/api/v1/tickets/${ticketNumber}/activities`, {
       method: 'POST',
-      body: JSON.stringify(request),
+      body: JSON.stringify({ content, activityType: 'COMMENT' }),
     });
   }
 
-  async getActivities(
-    ticketId: string,
-    params?: { cursor?: string; limit?: number },
-  ): Promise<PaginatedResponse<TicketActivity>> {
-    const searchParams = new URLSearchParams();
-    if (params?.cursor !== undefined && params.cursor !== '') {
-      searchParams.set('cursor', params.cursor);
-    }
-    if (params?.limit !== undefined) {
-      searchParams.set('limit', String(params.limit));
-    }
-
-    const query = searchParams.toString();
-    const path =
-      query !== ''
-        ? `/tickets/${ticketId}/activities?${query}`
-        : `/tickets/${ticketId}/activities`;
-    return this.request<PaginatedResponse<TicketActivity>>(path);
+  async getTicketActivities(ticketNumber: string): Promise<TicketActivity[]> {
+    return this.request<TicketActivity[]>(`/api/v1/tickets/${ticketNumber}/activities`);
   }
 
-  async getFaqs(params?: {
-    query?: string;
-    categorySlug?: string;
-    cursor?: string;
-    limit?: number;
-  }): Promise<PaginatedResponse<FAQ>> {
-    const searchParams = new URLSearchParams();
-    if (params?.query !== undefined && params.query !== '') {
-      searchParams.set('query', params.query);
-    }
-    if (params?.categorySlug !== undefined && params.categorySlug !== '') {
-      searchParams.set('categorySlug', params.categorySlug);
-    }
-    if (params?.cursor !== undefined && params.cursor !== '') {
-      searchParams.set('cursor', params.cursor);
-    }
-    if (params?.limit !== undefined) {
-      searchParams.set('limit', String(params.limit));
-    }
+  // FAQ operations
+  async searchFaq(query: string, limit = 5): Promise<FaqSearchResult> {
+    return this.request<FaqSearchResult>('/api/v1/faqs/search', {
+      method: 'POST',
+      body: JSON.stringify({ query, limit }),
+    });
+  }
 
-    const query = searchParams.toString();
-    const path = query !== '' ? `/faqs?${query}` : '/faqs';
-    return this.request<PaginatedResponse<FAQ>>(path);
+  async listFaqs(categoryId?: string): Promise<FaqEntry[]> {
+    const params = categoryId ? `?categoryId=${categoryId}` : '';
+    return this.request<FaqEntry[]>(`/api/v1/faqs${params}`);
+  }
+
+  // Notification operations
+  async getNotifications(cursor?: string): Promise<PaginatedResponse<Notification>> {
+    const params = cursor ? `?cursor=${cursor}` : '';
+    return this.request<PaginatedResponse<Notification>>(`/api/v1/notifications/me${params}`);
+  }
+
+  async getUnreadCount(): Promise<number> {
+    const result = await this.request<{ count: number }>('/api/v1/notifications/me/unread-count');
+    return result.count;
+  }
+
+  async markNotificationRead(notificationId: string): Promise<void> {
+    await this.request<void>(`/api/v1/notifications/${notificationId}/read`, { method: 'PUT' });
+  }
+
+  // Profile operations
+  async getProfile(): Promise<{ id: string; displayName: string; preferredLanguage: string }> {
+    return this.request('/api/v1/customers/me');
+  }
+
+  async updateProfile(updates: { displayName?: string; preferredLanguage?: string }): Promise<void> {
+    await this.request('/api/v1/customers/me', { method: 'PUT', body: JSON.stringify(updates) });
+  }
+
+  async getOrderHistory(): Promise<unknown[]> {
+    return this.request('/api/v1/customers/me/orders');
   }
 }

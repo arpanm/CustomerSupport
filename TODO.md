@@ -2,7 +2,7 @@
 > Single source of truth for all tasks, bugs, issues, and decisions.
 > Managed by Claude Code agents. Updated after every task, review, analysis, or deployment.
 
-**Last Updated:** 2026-03-23T00:00:00Z
+**Last Updated:** 2026-03-23T06:00:00Z
 **Active Sprint:** Sprint 0 — Foundation
 **Project:** SupportHub | Rupantar Technologies
 
@@ -12,8 +12,8 @@
 
 | Status | Count |
 |--------|-------|
-| 🆕 OPEN | 12 |
-| 🔄 IN_PROGRESS | 0 |
+| 🆕 OPEN | 4 |
+| 🔄 IN_PROGRESS | 8 |
 | 🔍 IN_REVIEW | 0 |
 | ⚠️ BLOCKED | 0 |
 | ✅ DONE | 0 |
@@ -32,13 +32,13 @@
 
 ---
 
-## 🟢 OPEN TASKS — Sprint 0: Foundation
+## 🔄 IN PROGRESS — Sprint 0: Foundation
 
 ### [INFRA-001] Local Docker Compose Stack Setup
 - **ID:** INFRA-001
 - **Type:** INFRA
 - **Priority:** P1-HIGH
-- **Status:** OPEN
+- **Status:** IN_PROGRESS
 - **Owner:** lead
 - **Service:** infrastructure
 - **Sprint:** sprint-0
@@ -47,8 +47,8 @@
 - **REQUIREMENT Ref:** Section 17.4 (Technology Stack)
 - **ARCHITECTURE Ref:** Section 5 (Repo Structure), Appendix A
 - **Created:** 2026-03-23T00:00:00Z
-- **Updated:** 2026-03-23T00:00:00Z
-- **Branch:** feature/INFRA-001-docker-compose-stack
+- **Updated:** 2026-03-23T06:00:00Z
+- **Branch:** claude/init-project-m5lAc
 
 #### Description
 Set up the complete local development Docker Compose stack including all required infrastructure services.
@@ -71,7 +71,7 @@ Set up the complete local development Docker Compose stack including all require
 - **ID:** INFRA-002
 - **Type:** INFRA
 - **Priority:** P1-HIGH
-- **Status:** OPEN
+- **Status:** IN_PROGRESS
 - **Owner:** lead
 - **Service:** backend
 - **Sprint:** sprint-0
@@ -80,7 +80,8 @@ Set up the complete local development Docker Compose stack including all require
 - **REQUIREMENT Ref:** Section 17.1 (Backend Tech Stack)
 - **ARCHITECTURE Ref:** Section 5 (Monorepo Structure)
 - **Created:** 2026-03-23T00:00:00Z
-- **Branch:** feature/INFRA-002-parent-pom
+- **Updated:** 2026-03-23T06:00:00Z
+- **Branch:** claude/init-project-m5lAc
 
 #### Description
 Create the Maven parent POM for the multi-module backend project with all shared dependency management, plugin configuration, and code quality tooling.
@@ -104,7 +105,7 @@ Create the Maven parent POM for the multi-module backend project with all shared
 - **ID:** INFRA-003
 - **Type:** INFRA
 - **Priority:** P1-HIGH
-- **Status:** OPEN
+- **Status:** IN_PROGRESS
 - **Owner:** lead
 - **Service:** frontend
 - **Sprint:** sprint-0
@@ -113,7 +114,8 @@ Create the Maven parent POM for the multi-module backend project with all shared
 - **REQUIREMENT Ref:** Section 17.3 (Frontend Tech Stack)
 - **ARCHITECTURE Ref:** Section 11 (Frontend Architecture)
 - **Created:** 2026-03-23T00:00:00Z
-- **Branch:** feature/INFRA-003-frontend-monorepo
+- **Updated:** 2026-03-23T06:00:00Z
+- **Branch:** claude/init-project-m5lAc
 
 #### Description
 Set up the npm workspaces monorepo with Vite, React 18, TypeScript strict mode, Tailwind CSS, shadcn/ui, TanStack Query, and Zustand across all frontend apps.
@@ -136,7 +138,7 @@ Set up the npm workspaces monorepo with Vite, React 18, TypeScript strict mode, 
 - **ID:** INFRA-004
 - **Type:** INFRA
 - **Priority:** P1-HIGH
-- **Status:** OPEN
+- **Status:** IN_PROGRESS
 - **Owner:** lead
 - **Service:** infrastructure
 - **Sprint:** sprint-0
@@ -145,7 +147,8 @@ Set up the npm workspaces monorepo with Vite, React 18, TypeScript strict mode, 
 - **REQUIREMENT Ref:** Section 18.5 (CI/CD)
 - **ARCHITECTURE Ref:** Section 21.4 (CI/CD Pipeline)
 - **Created:** 2026-03-23T00:00:00Z
-- **Branch:** feature/INFRA-004-cicd-pipeline
+- **Updated:** 2026-03-23T06:00:00Z
+- **Branch:** claude/init-project-m5lAc
 
 #### Description
 Create GitHub Actions workflows for CI (test + analysis) and CD (deploy to dev/staging/prod).
@@ -164,7 +167,7 @@ Create GitHub Actions workflows for CI (test + analysis) and CD (deploy to dev/s
 - **ID:** DB-001
 - **Type:** DB
 - **Priority:** P1-HIGH
-- **Status:** OPEN
+- **Status:** IN_PROGRESS
 - **Owner:** agent:db-migration-agent
 - **Service:** auth-service, tenant-service, customer-service
 - **Sprint:** sprint-0
@@ -173,7 +176,8 @@ Create GitHub Actions workflows for CI (test + analysis) and CD (deploy to dev/s
 - **REQUIREMENT Ref:** Section 4.2 (Customer), 4.6 (AgentUser), 4.1 (Tenant)
 - **ARCHITECTURE Ref:** Section 8.1 (PostgreSQL Schema), Section 18.1 (Schema Rules)
 - **Created:** 2026-03-23T00:00:00Z
-- **Branch:** feature/DB-001-core-auth-schema
+- **Updated:** 2026-03-23T06:00:00Z
+- **Branch:** claude/init-project-m5lAc
 
 #### Description
 Create Flyway migration scripts for the foundational tables: tenants, customers, agent_users, teams, refresh_tokens.
@@ -196,7 +200,7 @@ Create Flyway migration scripts for the foundational tables: tenants, customers,
 - **ID:** DB-002
 - **Type:** DB
 - **Priority:** P1-HIGH
-- **Status:** OPEN
+- **Status:** IN_PROGRESS
 - **Owner:** agent:db-migration-agent
 - **Service:** ticket-service
 - **Sprint:** sprint-0
@@ -205,7 +209,8 @@ Create Flyway migration scripts for the foundational tables: tenants, customers,
 - **REQUIREMENT Ref:** Section 4.4 (Ticket), 4.5 (TicketActivity), 4.8 (TicketCategory)
 - **ARCHITECTURE Ref:** Section 7.2 (ticket-service domain model), Section 8.1
 - **Created:** 2026-03-23T00:00:00Z
-- **Branch:** feature/DB-002-tickets-schema
+- **Updated:** 2026-03-23T06:00:00Z
+- **Branch:** claude/init-project-m5lAc
 
 #### Description
 Create Flyway migration scripts for ticket domain tables.
@@ -229,7 +234,7 @@ Create Flyway migration scripts for ticket domain tables.
 - **ID:** FEAT-001
 - **Type:** FEAT
 - **Priority:** P1-HIGH
-- **Status:** OPEN
+- **Status:** IN_PROGRESS
 - **Owner:** agent:implementer
 - **Service:** auth-service
 - **Sprint:** sprint-0
@@ -238,7 +243,8 @@ Create Flyway migration scripts for ticket domain tables.
 - **REQUIREMENT Ref:** REQ-CUI-AUTH-01 through REQ-CUI-AUTH-05
 - **ARCHITECTURE Ref:** Section 7.1 (auth-service), Section 15.1 (JWT Token Flow)
 - **Created:** 2026-03-23T00:00:00Z
-- **Branch:** feature/FEAT-001-otp-auth
+- **Updated:** 2026-03-23T06:00:00Z
+- **Branch:** claude/init-project-m5lAc
 
 #### Description
 Implement customer OTP authentication flow: send OTP via SMS (MSG91), verify OTP, issue JWT pair.
@@ -262,7 +268,7 @@ Implement customer OTP authentication flow: send OTP via SMS (MSG91), verify OTP
 - **ID:** FEAT-002
 - **Type:** FEAT
 - **Priority:** P1-HIGH
-- **Status:** OPEN
+- **Status:** IN_PROGRESS
 - **Owner:** agent:implementer
 - **Service:** auth-service
 - **Sprint:** sprint-0
@@ -271,7 +277,8 @@ Implement customer OTP authentication flow: send OTP via SMS (MSG91), verify OTP
 - **REQUIREMENT Ref:** REQ-AGT-AUTH-01 through REQ-AGT-AUTH-04
 - **ARCHITECTURE Ref:** Section 7.1, Section 15.1
 - **Created:** 2026-03-23T00:00:00Z
-- **Branch:** feature/FEAT-002-agent-auth
+- **Updated:** 2026-03-23T06:00:00Z
+- **Branch:** claude/init-project-m5lAc
 
 #### Description
 Implement agent email+password authentication with optional 2FA for admin roles.
@@ -283,6 +290,8 @@ Implement agent email+password authentication with optional 2FA for admin roles.
 - [ ] Unit + integration tests for both endpoints
 
 ---
+
+## 🟢 OPEN TASKS — Sprint 0: Foundation
 
 ### [FEAT-003] api-gateway — Spring Cloud Gateway Setup
 - **ID:** FEAT-003
@@ -297,7 +306,8 @@ Implement agent email+password authentication with optional 2FA for admin roles.
 - **REQUIREMENT Ref:** Section 15.2 (Security) — Rate limiting, JWT validation
 - **ARCHITECTURE Ref:** Section 10 (API Gateway)
 - **Created:** 2026-03-23T00:00:00Z
-- **Branch:** feature/FEAT-003-api-gateway
+- **Updated:** 2026-03-23T06:00:00Z
+- **Branch:** claude/init-project-m5lAc
 
 #### Description
 Set up Spring Cloud Gateway with JWT validation filter, tenant resolution filter, rate limiting (Redis), and circuit breakers (Resilience4j).
@@ -328,7 +338,8 @@ Set up Spring Cloud Gateway with JWT validation filter, tenant resolution filter
 - **REQUIREMENT Ref:** REQ-CUI-CREATE-01 through REQ-CUI-CREATE-08, REQ-AGT-DETAIL-01 through REQ-AGT-DETAIL-03
 - **ARCHITECTURE Ref:** Section 7.2 (ticket-service LLD), Section 4.4 (Ticket domain model)
 - **Created:** 2026-03-23T00:00:00Z
-- **Branch:** feature/FEAT-004-ticket-service-core
+- **Updated:** 2026-03-23T06:00:00Z
+- **Branch:** claude/init-project-m5lAc
 
 #### Description
 Implement core ticket-service: Ticket entity, TicketActivity, status transition machine, SLA engine, ticket number generator, Kafka event publishing.
@@ -356,7 +367,7 @@ Implement core ticket-service: Ticket entity, TicketActivity, status transition 
 - **ID:** DOCS-001
 - **Type:** DOCS
 - **Priority:** P2-MEDIUM
-- **Status:** OPEN
+- **Status:** IN_PROGRESS
 - **Owner:** lead
 - **Service:** all
 - **Sprint:** sprint-0
@@ -365,13 +376,14 @@ Implement core ticket-service: Ticket entity, TicketActivity, status transition 
 - **REQUIREMENT Ref:** N/A
 - **ARCHITECTURE Ref:** N/A (Claude Code config)
 - **Created:** 2026-03-23T00:00:00Z
-- **Branch:** feature/DOCS-001-claude-commands-agents
+- **Updated:** 2026-03-23T06:00:00Z
+- **Branch:** claude/init-project-m5lAc
 
 #### Description
-Create all `.claude/agents/` and `.claude/commands/` files referenced in CLAUDE.md, plus the `.claude/settings.json` hooks configuration.
+Create all `.claude/agents/` and `.claude/commands/` files referenced in CLAUDE-SDLC.md, plus the `.claude/settings.json` hooks configuration.
 
 #### Acceptance Criteria
-- [ ] `.claude/settings.json` with hooks from CLAUDE.md Section 25
+- [ ] `.claude/settings.json` with hooks from CLAUDE-SDLC.md Section 25
 - [ ] `.claude/agents/code-reviewer.md`
 - [ ] `.claude/agents/security-analyst.md`
 - [ ] `.claude/agents/test-engineer.md`
@@ -389,7 +401,7 @@ Create all `.claude/agents/` and `.claude/commands/` files referenced in CLAUDE.
 ---
 
 ## 🔄 IN PROGRESS
-<!-- No tasks currently in progress -->
+<!-- Tasks listed above -->
 
 ---
 
@@ -420,7 +432,10 @@ Create all `.claude/agents/` and `.claude/commands/` files referenced in CLAUDE.
 
 ## Changelog
 
-### 2026-03-23
+### 2026-03-23 (Sprint 0 kickoff)
 - TODO.md created with Sprint 0 foundation tasks
 - Initial 12 tasks: 4 INFRA, 2 DB, 5 FEAT, 1 DOCS
 - Based on REQUIREMENT.md v1.0 and ARCHITECTURE.md v1.0
+### 2026-03-23 (Implementation start)
+- INFRA-001, INFRA-002, INFRA-003, INFRA-004, DB-001, DB-002, FEAT-001, FEAT-002, DOCS-001 marked IN_PROGRESS
+- Implementation of Sprint 0 foundation tasks started

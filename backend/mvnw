@@ -1,0 +1,234 @@
+#!/bin/sh
+# ----------------------------------------------------------------------------
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+# ----------------------------------------------------------------------------
+
+# ----------------------------------------------------------------------------
+# Apache Maven Wrapper startup batch script, version 3.3.2
+#
+# Optional ENV vars
+# -----------------
+#   JAVA_HOME - location of a JDK home dir, required for JDK download
+#   MVNW_REPOURL - repo to use for downloading maven distribution
+#   MVNW_USERNAME/MVNW_PASSWORD - username and password for downloading maven
+#   MVNW_VERBOSE - true: enable verbose output
+# ----------------------------------------------------------------------------
+
+set -euf
+[ "${MVNW_VERBOSE-}" != true ] || set -x
+
+# OS specific support.
+native_path() { printf %s\\n "$1"; }
+case "$(uname)" in
+CYGWIN* | MINGW*)
+  [ -z "${JAVA_HOME-}" ] || JAVA_HOME="$(cygpath --unix "$JAVA_HOME")"
+  native_path() { cygpath --path --windows "$1"; }
+  ;;
+esac
+
+# set JAVACMD and JAVACCMD
+set_java_home() {
+  # For Cygwin and MinGW, ensure paths are in Unix format before anything is touched
+  if [ -n "${JAVA_HOME-}" ]; then
+    if [ -x "$JAVA_HOME/jre/sh/java" ]; then
+      # IBM's JDK on AIX uses strange locations for the executables
+      JAVACMD="$JAVA_HOME/jre/sh/java"
+    else
+      JAVACMD="$JAVA_HOME/bin/java"
+    fi
+    if [ ! -x "$JAVACMD" ]; then
+      echo "The JAVA_HOME environment variable is not defined correctly, so mvnw cannot run." >&2
+      echo "JAVA_HOME is set to \"$JAVA_HOME\", but \"\$JAVA_HOME/bin/java\" does not exist." >&2
+      return 1
+    fi
+  else
+    JAVACMD="$(
+      'set' +e
+      'unset' -v JAVA_HOME
+      'command' -v java
+    )" || :
+    if [ -z "$JAVACMD" ]; then
+      echo "Cannot find a Java executable; please install Java and set JAVA_HOME or ensure java is on the PATH." >&2
+      return 1
+    fi
+  fi
+}
+
+# hash string like Java String#hashCode
+hash_string() {
+  str="${1:-}" h=0
+  while [ -n "$str" ]; do
+    char="${str%"${str#?}"}"
+    h=$(((h * 31 + $(LC_CTYPE=C printf %d "'$char")) % 4294967296))
+    str="${str#?}"
+  done
+  printf %x\\n $h
+}
+
+verbose() { :; }
+[ "${MVNW_VERBOSE-}" != true ] || verbose() { printf %s\\n "${1-}"; }
+
+die() {
+  printf %s\\n "$1" >&2
+  exit 1
+}
+
+trim() {
+  # MWRAPPER-139:
+  #   Trims trailing and leading whitespace, carriage returns, tabs, and linefeeds.
+  #   Needed for removing poorly-formatted strings in maven-wrapper.properties
+  printf "%s" "${1}" | tr -d '[:space:]'
+}
+
+# parse distributionUrl and set the variables
+# agnostic to OS and not too strict on URL
+parse_maven_config() {
+  NEW_LINE=$'\n'
+  local wrapper_properties="$(dirname -- "$0")/.mvn/wrapper/maven-wrapper.properties"
+  local distributionUrl wrapperUrl
+  while IFS="=" read -r key value; do
+    case "$(trim "${key}")" in
+    distributionUrl) distributionUrl=$(trim "${value}") ;;
+    wrapperUrl) wrapperUrl=$(trim "${value}") ;;
+    esac
+  done <"${wrapper_properties}"
+  if [ -z "${distributionUrl-}" ]; then
+    die "cannot read distributionUrl property in ${wrapper_properties}"
+  fi
+
+  case "${distributionUrl}" in
+  *?-bin.zip | *?-bin.tar.gz | *?-bin.tar.bz2) : ;;
+  *) die "distributionUrl '${distributionUrl}' must end with *-bin.zip, *-bin.tar.gz, or *-bin.tar.bz2" ;;
+  esac
+
+  distributionUrlName="${distributionUrl##*/}"
+  distributionUrlNameMain="${distributionUrlName%.*}"
+  distributionUrlNameMain="${distributionUrlNameMain%-bin}"
+  MAVEN_HOME_PARENT="${MAVEN_USER_HOME:-${HOME}/.m2}/wrapper/dists/${distributionUrlNameMain}"
+  MAVEN_HOME="${MAVEN_HOME_PARENT}/${distributionUrlNameMain}"
+  MAVEN_HOME_HASH="$(hash_string "${distributionUrl}")"
+  MAVEN_HOME="${MAVEN_HOME_PARENT}/${MAVEN_HOME_HASH}"
+
+  WRAPPER_JAR="$(dirname -- "$0")/.mvn/wrapper/maven-wrapper.jar"
+  WRAPPER_DOWNLOADER_CLASS="org.apache.maven.wrapper.MavenWrapperDownloader"
+  WRAPPER_URL="${wrapperUrl:-https://repo.maven.apache.org/maven2/org/apache/maven/wrapper/maven-wrapper/3.3.2/maven-wrapper-3.3.2.jar}"
+
+  verbose "distributionUrl  = ${distributionUrl}"
+  verbose "wrapperUrl       = ${WRAPPER_URL}"
+  verbose "MAVEN_HOME       = ${MAVEN_HOME}"
+  verbose "WRAPPER_JAR      = ${WRAPPER_JAR}"
+}
+
+maybe_download_wrapper_jar() {
+  if [ -r "${WRAPPER_JAR}" ]; then
+    verbose "${WRAPPER_JAR} is already downloaded"
+    return
+  fi
+
+  if [ -n "${MVNW_REPOURL-}" ]; then
+    WRAPPER_URL="$(printf %s\\n "${WRAPPER_URL}" | sed "s|https://repo.maven.apache.org/maven2|${MVNW_REPOURL}|")"
+  fi
+  while IFS="=" read -r key value; do
+    case "$(trim "${key}")" in
+    wrapperUrl) wrapperUrl=$(trim "${value}") ;;
+    esac
+  done <"$(dirname -- "$0")/.mvn/wrapper/maven-wrapper.properties"
+  [ -n "${wrapperUrl-}" ] && WRAPPER_URL="${wrapperUrl}"
+
+  verbose "Downloading ${WRAPPER_URL}"
+
+  if ! command -v curl >/dev/null; then
+    verbose "curl is not found, using wget"
+    wget ${MVNW_USERNAME:+--user="${MVNW_USERNAME}"} \
+      ${MVNW_PASSWORD:+--password="${MVNW_PASSWORD}"} \
+      --no-verbose -O "${WRAPPER_JAR}" "${WRAPPER_URL}" ||
+      rm -f "${WRAPPER_JAR}"
+  else
+    curl ${MVNW_USERNAME:+-u "${MVNW_USERNAME}:${MVNW_PASSWORD-}"} \
+      -fsSL -o "${WRAPPER_JAR}" "${WRAPPER_URL}" ||
+      rm -f "${WRAPPER_JAR}"
+  fi
+
+  [ -r "${WRAPPER_JAR}" ] || die "Unable to download Maven wrapper jar: ${WRAPPER_URL}"
+}
+
+maybe_download_maven() {
+  [ -d "${MAVEN_HOME}" ] && return
+
+  set_java_home
+
+  verbose "Downloading ${distributionUrl}"
+  tmpdir="$(mktemp -d)" || die "cannot create temporary directory"
+  trap 'rm -rf -- "${tmpdir}"' EXIT
+
+  local archive="${tmpdir}/maven.${distributionUrl##*.}"
+  if ! command -v curl >/dev/null; then
+    verbose "curl is not found, using wget"
+    wget ${MVNW_USERNAME:+--user="${MVNW_USERNAME}"} \
+      ${MVNW_PASSWORD:+--password="${MVNW_PASSWORD}"} \
+      --no-verbose -O "${archive}" "${distributionUrl}" ||
+      rm -f "${archive}"
+  else
+    curl ${MVNW_USERNAME:+-u "${MVNW_USERNAME}:${MVNW_PASSWORD-}"} \
+      -fsSL -o "${archive}" "${distributionUrl}" ||
+      rm -f "${archive}"
+  fi
+  [ -r "${archive}" ] || die "Unable to download Maven distribution: ${distributionUrl}"
+
+  # If specified, validate the download against the checksum
+  local checksum_url="${distributionUrl}.sha256"
+  if command -v sha256sum >/dev/null; then
+    verbose "Downloading checksum from ${checksum_url}"
+    checksum="$(
+      curl ${MVNW_USERNAME:+-u "${MVNW_USERNAME}:${MVNW_PASSWORD-}"} \
+        -fsSL "${checksum_url}" 2>/dev/null ||
+        wget ${MVNW_USERNAME:+--user="${MVNW_USERNAME}"} \
+          ${MVNW_PASSWORD:+--password="${MVNW_PASSWORD}"} \
+          -q -O - "${checksum_url}" 2>/dev/null ||
+        :
+    )"
+    if [ -n "${checksum}" ]; then
+      printf '%s  %s' "${checksum}" "${archive}" | sha256sum -c || die "Checksum validation failed"
+    fi
+  fi
+
+  verbose "Extracting ${archive} to ${MAVEN_HOME_PARENT}"
+  mkdir -p "${MAVEN_HOME_PARENT}"
+  case "${archive##*.}" in
+  zip) unzip -qq "${archive}" -d "${MAVEN_HOME_PARENT}" ;;
+  tar.gz | tgz) tar xzf "${archive}" -C "${MAVEN_HOME_PARENT}" ;;
+  tar.bz2 | tbz2) tar xjf "${archive}" -C "${MAVEN_HOME_PARENT}" ;;
+  esac
+
+  local extracted_dir="${MAVEN_HOME_PARENT}/${distributionUrlNameMain}"
+  mv -- "${extracted_dir}" "${MAVEN_HOME}" ||
+    die "Cannot move ${extracted_dir} to ${MAVEN_HOME}"
+}
+
+parse_maven_config
+maybe_download_wrapper_jar
+maybe_download_maven
+set_java_home
+
+exec "${JAVA_HOME}/bin/java" \
+  ${JVMFLAGS-} \
+  "-classpath" "${WRAPPER_JAR}" \
+  "-Dmaven.multiModuleProjectDirectory=${MAVEN_PROJECTBASEDIR}" \
+  ${WRAPPER_LAUNCHER-org.apache.maven.wrapper.MavenWrapperMain} \
+  "$@" \
+  "-Dmaven.home=${MAVEN_HOME}"

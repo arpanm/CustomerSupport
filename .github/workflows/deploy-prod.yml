@@ -1,0 +1,48 @@
+name: Deploy to Production
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  deploy-prod:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    environment: production   # Requires manual approval in GitHub Environments settings
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify all quality gates passed
+        run: |
+          echo "Deploying tag: ${{ github.ref_name }}"
+          echo "Commit: ${{ github.sha }}"
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-south-1
+      - name: Update kubeconfig
+        run: aws eks update-kubeconfig --name supporthub-prod --region ap-south-1
+      - name: Run DB migrations (production)
+        run: |
+          kubectl create job --from=cronjob/flyway-migrate flyway-prod-migrate-$(date +%s) \
+            -n supporthub-prod
+          kubectl wait --for=condition=complete job/flyway-prod-migrate-* \
+            -n supporthub-prod --timeout=600s
+      - name: Deploy to production
+        run: |
+          kubectl set image deployment/api-gateway \
+            api-gateway=supporthub/api-gateway:${{ github.sha }} \
+            -n supporthub-prod
+      - name: Wait for rollout
+        run: kubectl rollout status deployment/api-gateway -n supporthub-prod --timeout=600s
+      - name: Post-deployment verification
+        run: |
+          sleep 60
+          curl -f https://api.supporthub.in/actuator/health
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "Production deployment FAILED. Manual rollback required:"
+          echo "kubectl rollout undo deployment/api-gateway -n supporthub-prod"

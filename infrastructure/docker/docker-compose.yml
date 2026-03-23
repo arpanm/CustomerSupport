@@ -1,0 +1,291 @@
+version: "3.9"
+
+# SupportHub — Local Development Docker Compose Stack
+# Task: INFRA-001
+# Usage: docker compose -f infrastructure/docker/docker-compose.yml up -d
+# See .env.example for required environment variables.
+
+networks:
+  supporthub-network:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  strapi-postgres-data:
+  mongo-data:
+  redis-data:
+  kafka-data:
+  zookeeper-data:
+  zookeeper-log:
+  elasticsearch-data:
+  minio-data:
+
+services:
+
+  # ============================================================
+  # PostgreSQL 16 + pgvector (main application DB)
+  # ============================================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: supporthub-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-supporthub}
+      POSTGRES_USER: ${POSTGRES_USER:-supporthub}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-supporthub_dev_password}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./init-db:/docker-entrypoint-initdb.d:ro
+    networks:
+      - supporthub-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-supporthub} -d ${POSTGRES_DB:-supporthub}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ============================================================
+  # MongoDB 7 (document store for tickets, activities, etc.)
+  # ============================================================
+  mongo:
+    image: mongo:7-jammy
+    container_name: supporthub-mongo
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER:-supporthub}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD:-supporthub_dev_password}
+      MONGO_INITDB_DATABASE: ${MONGO_DB:-supporthub}
+    ports:
+      - "${MONGO_PORT:-27017}:27017"
+    volumes:
+      - mongo-data:/data/db
+    networks:
+      - supporthub-network
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ============================================================
+  # Redis 7 (cache, session, Kafka idempotency cache)
+  # ============================================================
+  redis:
+    image: redis:7-alpine
+    container_name: supporthub-redis
+    restart: unless-stopped
+    command: >
+      redis-server
+      --requirepass ${REDIS_PASSWORD:-supporthub_dev_password}
+      --appendonly yes
+      --appendfsync everysec
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - supporthub-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-supporthub_dev_password}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # ============================================================
+  # Zookeeper (required by Confluent Kafka)
+  # ============================================================
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.0
+    container_name: supporthub-zookeeper
+    restart: unless-stopped
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+      ZOOKEEPER_SYNC_LIMIT: 2
+    ports:
+      - "2181:2181"
+    volumes:
+      - zookeeper-data:/var/lib/zookeeper/data
+      - zookeeper-log:/var/lib/zookeeper/log
+    networks:
+      - supporthub-network
+    healthcheck:
+      test: ["CMD-SHELL", "echo ruok | nc -w 2 localhost 2181 | grep imok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  # ============================================================
+  # Apache Kafka (1 broker, dev mode)
+  # ============================================================
+  kafka:
+    image: confluentinc/cp-kafka:7.6.0
+    container_name: supporthub-kafka
+    restart: unless-stopped
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092,PLAINTEXT_INTERNAL://kafka:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_INTERNAL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT_INTERNAL
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_LOG_RETENTION_HOURS: 24
+      KAFKA_LOG_SEGMENT_BYTES: 1073741824
+    ports:
+      - "${KAFKA_PORT:-9092}:9092"
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    networks:
+      - supporthub-network
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:9092 > /dev/null 2>&1"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+
+  # ============================================================
+  # Elasticsearch 8 (search, FAQ indexing)
+  # ============================================================
+  elasticsearch:
+    image: elasticsearch:8.13.0
+    container_name: supporthub-elasticsearch
+    restart: unless-stopped
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - xpack.security.http.ssl.enabled=false
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+      - cluster.name=supporthub-dev
+      - bootstrap.memory_lock=true
+    ports:
+      - "${ELASTICSEARCH_PORT:-9200}:9200"
+      - "9300:9300"
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    networks:
+      - supporthub-network
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health | grep -qE '\"status\":\"(green|yellow)\"'"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  # ============================================================
+  # MinIO (S3-compatible object storage)
+  # ============================================================
+  minio:
+    image: minio/minio:latest
+    container_name: supporthub-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+    ports:
+      - "${MINIO_API_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - minio-data:/data
+    networks:
+      - supporthub-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  # ============================================================
+  # PostgreSQL for Strapi (dedicated DB, separate from main app)
+  # ============================================================
+  strapi-postgres:
+    image: postgres:16-alpine
+    container_name: supporthub-strapi-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${STRAPI_DB_NAME:-strapi}
+      POSTGRES_USER: ${STRAPI_DB_USER:-strapi}
+      POSTGRES_PASSWORD: ${STRAPI_DB_PASSWORD:-strapi_dev_password}
+    ports:
+      - "${STRAPI_POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - strapi-postgres-data:/var/lib/postgresql/data
+    networks:
+      - supporthub-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${STRAPI_DB_USER:-strapi} -d ${STRAPI_DB_NAME:-strapi}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  # ============================================================
+  # Strapi v5 CMS (FAQ content management)
+  # ============================================================
+  strapi:
+    image: node:20-alpine
+    container_name: supporthub-strapi
+    restart: unless-stopped
+    working_dir: /app
+    command: >
+      sh -c "
+        if [ ! -f package.json ]; then
+          echo 'Strapi source not mounted. Please mount the cms/ directory to /app.';
+          echo 'Sleeping to keep container alive for inspection...';
+          sleep infinity;
+        else
+          npm install && npm run develop;
+        fi
+      "
+    environment:
+      NODE_ENV: development
+      DATABASE_CLIENT: postgres
+      DATABASE_HOST: strapi-postgres
+      DATABASE_PORT: 5432
+      DATABASE_NAME: ${STRAPI_DB_NAME:-strapi}
+      DATABASE_USERNAME: ${STRAPI_DB_USER:-strapi}
+      DATABASE_PASSWORD: ${STRAPI_DB_PASSWORD:-strapi_dev_password}
+      DATABASE_SSL: "false"
+      JWT_SECRET: ${STRAPI_JWT_SECRET:-a-very-long-secret-for-local-dev-only-change-in-prod}
+      ADMIN_JWT_SECRET: ${STRAPI_ADMIN_JWT_SECRET:-another-very-long-secret-for-local-dev-only}
+      APP_KEYS: ${STRAPI_APP_KEYS:-key1,key2,key3,key4}
+      API_TOKEN_SALT: ${STRAPI_API_TOKEN_SALT:-a-salt-value-for-local-dev}
+      TRANSFER_TOKEN_SALT: ${STRAPI_TRANSFER_TOKEN_SALT:-a-transfer-salt-value-for-local-dev}
+      HOST: "0.0.0.0"
+      PORT: 1337
+    ports:
+      - "${STRAPI_PORT:-1337}:1337"
+    volumes:
+      - ../../cms:/app
+    depends_on:
+      strapi-postgres:
+        condition: service_healthy
+    networks:
+      - supporthub-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:1337/_health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s

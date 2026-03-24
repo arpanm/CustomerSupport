@@ -4,6 +4,8 @@ import { DashboardPage } from './pages/DashboardPage.js';
 import { CategoryManagementPage } from './pages/CategoryManagementPage.js';
 import { AgentManagementPage } from './pages/AgentManagementPage.js';
 import { SlaConfigPage } from './pages/SlaConfigPage.js';
+import { ReportingPage } from './pages/ReportingPage.js';
+import { FAQManagementPage } from './pages/FAQManagementPage.js';
 
 const NAV_LINK_CLASS = ({ isActive }: { isActive: boolean }) =>
   `flex items-center rounded-md px-3 py-2 text-sm font-medium transition-colors ${
@@ -29,6 +31,8 @@ function AdminLayout() {
           <NavLink to="/agents" className={NAV_LINK_CLASS}>Agents</NavLink>
           <NavLink to="/categories" className={NAV_LINK_CLASS}>Categories</NavLink>
           <NavLink to="/sla" className={NAV_LINK_CLASS}>SLA Config</NavLink>
+          <NavLink to="/reporting" className={NAV_LINK_CLASS}>Reporting</NavLink>
+          <NavLink to="/faqs" className={NAV_LINK_CLASS}>FAQs</NavLink>
         </nav>
         <div className="border-t border-gray-200 p-4">
           <p className="text-xs font-medium text-gray-700">{user?.name ?? 'Admin'}</p>
@@ -58,6 +62,8 @@ export const router = createBrowserRouter([
       { path: 'agents', element: <AgentManagementPage /> },
       { path: 'categories', element: <CategoryManagementPage /> },
       { path: 'sla', element: <SlaConfigPage /> },
+      { path: 'reporting', element: <ReportingPage /> },
+      { path: 'faqs', element: <FAQManagementPage /> },
     ],
   },
 ]);

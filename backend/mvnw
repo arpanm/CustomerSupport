@@ -100,7 +100,7 @@ trim() {
 parse_maven_config() {
   NEW_LINE=$'\n'
   local wrapper_properties="$(dirname -- "$0")/.mvn/wrapper/maven-wrapper.properties"
-  local distributionUrl wrapperUrl
+  local wrapperUrl
   while IFS="=" read -r key value; do
     case "$(trim "${key}")" in
     distributionUrl) distributionUrl=$(trim "${value}") ;;

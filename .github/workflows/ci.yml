@@ -8,7 +8,7 @@ on:
 
 env:
   JAVA_VERSION: '21'
-  NODE_VERSION: '20'
+  NODE_VERSION: '22'
 
 jobs:
   # ─────────────────────────────────────────
@@ -120,6 +120,11 @@ jobs:
       - name: Install dependencies
         working-directory: frontend
         run: npm ci
+      - name: Build workspace packages
+        working-directory: frontend
+        run: |
+          npm run build -w packages/customer-sdk
+          npm run build -w packages/ui-components
       - name: TypeScript check
         working-directory: frontend
         run: npm run typecheck --workspaces --if-present

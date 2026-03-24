@@ -1,0 +1,358 @@
+version: "3.9"
+
+# SupportHub — All microservices + frontend apps
+# Requires infrastructure stack (docker-compose.yml) to be running first.
+# Run via: ./run-local.sh  (never start this file directly)
+
+networks:
+  supporthub-network:
+    external: true   # created by docker-compose.yml
+
+# ─────────────────────────────────────────────────────────────
+# Shared fragments
+# ─────────────────────────────────────────────────────────────
+x-svc-env: &svc-env
+  DB_URL: jdbc:postgresql://postgres:5432/supporthub
+  DB_USER: ${POSTGRES_USER:-supporthub}
+  DB_PASS: ${POSTGRES_PASSWORD:-supporthub_dev_password}
+  REDIS_HOST: redis
+  REDIS_PORT: "6379"
+  REDIS_PASS: ${REDIS_PASSWORD:-supporthub_dev_password}
+  KAFKA_SERVERS: kafka:29092
+  MONGODB_URI: "mongodb://${MONGO_USER:-supporthub}:${MONGO_PASSWORD:-supporthub_dev_password}@mongo:27017/${MONGO_DB:-supporthub}?authSource=admin"
+  ELASTICSEARCH_URL: http://elasticsearch:9200
+  AWS_S3_ENDPOINT: http://minio:9000
+  AWS_S3_BUCKET: ${AWS_S3_BUCKET:-supporthub-dev}
+  AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-minioadmin}
+  AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
+  AWS_REGION: ${AWS_REGION:-ap-south-1}
+  JWT_PUBLIC_KEY_LOCATION: classpath:keys/public.pem
+  JWT_PRIVATE_KEY_LOCATION: classpath:keys/private.pem
+  SPRING_PROFILES_ACTIVE: dev
+
+x-svc-base: &svc-base
+  image: eclipse-temurin:21-jre-alpine
+  restart: unless-stopped
+  networks:
+    - supporthub-network
+  command:
+    - java
+    - -jar
+    - -Dspring.threads.virtual.enabled=true
+    - -XX:+UseContainerSupport
+    - -XX:MaxRAMPercentage=75.0
+    - /app/app.jar
+
+x-svc-healthcheck: &svc-healthcheck
+  interval: 15s
+  timeout: 5s
+  retries: 8
+  start_period: 90s
+
+services:
+
+  # ─────────────────────────────────────────────────────────────
+  # MinIO bucket initialisation (one-shot)
+  # ─────────────────────────────────────────────────────────────
+  minio-init:
+    image: minio/mc:latest
+    container_name: supporthub-minio-init
+    networks:
+      - supporthub-network
+    entrypoint: >
+      /bin/sh -c "
+        until mc alias set local http://minio:9000
+              '${MINIO_ROOT_USER:-minioadmin}'
+              '${MINIO_ROOT_PASSWORD:-minioadmin}'; do
+          echo 'Waiting for MinIO...'; sleep 2;
+        done;
+        mc mb --ignore-existing local/${AWS_S3_BUCKET:-supporthub-dev};
+        mc anonymous set download local/${AWS_S3_BUCKET:-supporthub-dev};
+        echo 'MinIO bucket ready.';
+      "
+    restart: "no"
+
+  # ─────────────────────────────────────────────────────────────
+  # Backend — auth-service  :8081
+  # ─────────────────────────────────────────────────────────────
+  auth-service:
+    <<: *svc-base
+    container_name: supporthub-auth-service
+    volumes:
+      - ../../backend/auth-service/target/supporthub-auth-service-1.0.0-SNAPSHOT.jar:/app/app.jar:ro
+    environment:
+      <<: *svc-env
+      MSG91_API_KEY: ${MSG91_API_KEY:-}
+      MSG91_SENDER_ID: ${MSG91_SENDER_ID:-SUPHUB}
+      MSG91_TEMPLATE_ID: ${MSG91_TEMPLATE_ID:-}
+    ports:
+      - "8081:8081"
+    healthcheck:
+      <<: *svc-healthcheck
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8081/actuator/health 2>/dev/null | grep -q '\"UP\"'"]
+
+  # ─────────────────────────────────────────────────────────────
+  # Backend — ticket-service  :8082
+  # ─────────────────────────────────────────────────────────────
+  ticket-service:
+    <<: *svc-base
+    container_name: supporthub-ticket-service
+    volumes:
+      - ../../backend/ticket-service/target/supporthub-ticket-service-1.0.0-SNAPSHOT.jar:/app/app.jar:ro
+    environment:
+      <<: *svc-env
+    ports:
+      - "8082:8082"
+    healthcheck:
+      <<: *svc-healthcheck
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8082/actuator/health 2>/dev/null | grep -q '\"UP\"'"]
+
+  # ─────────────────────────────────────────────────────────────
+  # Backend — customer-service  :8083
+  # ─────────────────────────────────────────────────────────────
+  customer-service:
+    <<: *svc-base
+    container_name: supporthub-customer-service
+    volumes:
+      - ../../backend/customer-service/target/supporthub-customer-service-1.0.0-SNAPSHOT.jar:/app/app.jar:ro
+    environment:
+      <<: *svc-env
+    ports:
+      - "8083:8083"
+    healthcheck:
+      <<: *svc-healthcheck
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8083/actuator/health 2>/dev/null | grep -q '\"UP\"'"]
+
+  # ─────────────────────────────────────────────────────────────
+  # Backend — ai-service  :8084
+  # ─────────────────────────────────────────────────────────────
+  ai-service:
+    <<: *svc-base
+    container_name: supporthub-ai-service
+    volumes:
+      - ../../backend/ai-service/target/supporthub-ai-service-1.0.0-SNAPSHOT.jar:/app/app.jar:ro
+    environment:
+      <<: *svc-env
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_SENTIMENT_MODEL: ${ANTHROPIC_SENTIMENT_MODEL:-claude-haiku-4-5-20251001}
+      ANTHROPIC_RESOLUTION_MODEL: ${ANTHROPIC_RESOLUTION_MODEL:-claude-sonnet-4-5}
+      LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-}
+      LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-}
+      LANGFUSE_HOST: ${LANGFUSE_HOST:-https://cloud.langfuse.com}
+    ports:
+      - "8084:8084"
+    healthcheck:
+      <<: *svc-healthcheck
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8084/actuator/health 2>/dev/null | grep -q '\"UP\"'"]
+
+  # ─────────────────────────────────────────────────────────────
+  # Backend — notification-service  :8085
+  # ─────────────────────────────────────────────────────────────
+  notification-service:
+    <<: *svc-base
+    container_name: supporthub-notification-service
+    volumes:
+      - ../../backend/notification-service/target/supporthub-notification-service-1.0.0-SNAPSHOT.jar:/app/app.jar:ro
+    environment:
+      <<: *svc-env
+      MSG91_API_KEY: ${MSG91_API_KEY:-}
+      MSG91_SENDER_ID: ${MSG91_SENDER_ID:-SUPHUB}
+      MSG91_FLOW_ID: ${MSG91_FLOW_ID:-TICKET_CREATED}
+      SENDGRID_API_KEY: ${SENDGRID_API_KEY:-}
+      SENDGRID_FROM_EMAIL: ${SENDGRID_FROM_EMAIL:-support@supporthub.in}
+      WHATSAPP_ACCESS_TOKEN: ${WHATSAPP_ACCESS_TOKEN:-}
+      WHATSAPP_PHONE_NUMBER_ID: ${WHATSAPP_PHONE_NUMBER_ID:-}
+    ports:
+      - "8085:8085"
+    healthcheck:
+      <<: *svc-healthcheck
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8085/actuator/health 2>/dev/null | grep -q '\"UP\"'"]
+
+  # ─────────────────────────────────────────────────────────────
+  # Backend — faq-service  :8086
+  # ─────────────────────────────────────────────────────────────
+  faq-service:
+    <<: *svc-base
+    container_name: supporthub-faq-service
+    volumes:
+      - ../../backend/faq-service/target/supporthub-faq-service-1.0.0-SNAPSHOT.jar:/app/app.jar:ro
+    environment:
+      <<: *svc-env
+    ports:
+      - "8086:8086"
+    healthcheck:
+      <<: *svc-healthcheck
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8086/actuator/health 2>/dev/null | grep -q '\"UP\"'"]
+
+  # ─────────────────────────────────────────────────────────────
+  # Backend — reporting-service  :8087
+  # ─────────────────────────────────────────────────────────────
+  reporting-service:
+    <<: *svc-base
+    container_name: supporthub-reporting-service
+    volumes:
+      - ../../backend/reporting-service/target/supporthub-reporting-service-1.0.0-SNAPSHOT.jar:/app/app.jar:ro
+    environment:
+      <<: *svc-env
+    ports:
+      - "8087:8087"
+    healthcheck:
+      <<: *svc-healthcheck
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8087/actuator/health 2>/dev/null | grep -q '\"UP\"'"]
+
+  # ─────────────────────────────────────────────────────────────
+  # Backend — tenant-service  :8088
+  # ─────────────────────────────────────────────────────────────
+  tenant-service:
+    <<: *svc-base
+    container_name: supporthub-tenant-service
+    volumes:
+      - ../../backend/tenant-service/target/supporthub-tenant-service-1.0.0-SNAPSHOT.jar:/app/app.jar:ro
+    environment:
+      <<: *svc-env
+    ports:
+      - "8088:8088"
+    healthcheck:
+      <<: *svc-healthcheck
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8088/actuator/health 2>/dev/null | grep -q '\"UP\"'"]
+
+  # ─────────────────────────────────────────────────────────────
+  # Backend — order-sync-service  :8089
+  # ─────────────────────────────────────────────────────────────
+  order-sync-service:
+    <<: *svc-base
+    container_name: supporthub-order-sync-service
+    volumes:
+      - ../../backend/order-sync-service/target/supporthub-order-sync-service-1.0.0-SNAPSHOT.jar:/app/app.jar:ro
+    environment:
+      <<: *svc-env
+    ports:
+      - "8089:8089"
+    healthcheck:
+      <<: *svc-healthcheck
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8089/actuator/health 2>/dev/null | grep -q '\"UP\"'"]
+
+  # ─────────────────────────────────────────────────────────────
+  # Backend — mcp-server  :8090
+  # ─────────────────────────────────────────────────────────────
+  mcp-server:
+    <<: *svc-base
+    container_name: supporthub-mcp-server
+    volumes:
+      - ../../backend/mcp-server/target/supporthub-mcp-server-1.0.0-SNAPSHOT.jar:/app/app.jar:ro
+    environment:
+      <<: *svc-env
+      TICKET_SERVICE_URL: http://ticket-service:8082
+      FAQ_SERVICE_URL: http://faq-service:8086
+    ports:
+      - "8090:8090"
+    healthcheck:
+      <<: *svc-healthcheck
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8090/actuator/health 2>/dev/null | grep -q '\"UP\"'"]
+
+  # ─────────────────────────────────────────────────────────────
+  # Backend — api-gateway  :8080  (starts last — routes to all services)
+  # ─────────────────────────────────────────────────────────────
+  api-gateway:
+    <<: *svc-base
+    container_name: supporthub-api-gateway
+    volumes:
+      - ../../backend/api-gateway/target/supporthub-api-gateway-1.0.0-SNAPSHOT.jar:/app/app.jar:ro
+    environment:
+      <<: *svc-env
+      AUTH_SERVICE_URL: http://auth-service:8081
+      TICKET_SERVICE_URL: http://ticket-service:8082
+      CUSTOMER_SERVICE_URL: http://customer-service:8083
+      AI_SERVICE_URL: http://ai-service:8084
+      NOTIFICATION_SERVICE_URL: http://notification-service:8085
+      FAQ_SERVICE_URL: http://faq-service:8086
+      REPORTING_SERVICE_URL: http://reporting-service:8087
+      TENANT_SERVICE_URL: http://tenant-service:8088
+      ORDER_SYNC_SERVICE_URL: http://order-sync-service:8089
+      MCP_SERVER_URL: http://mcp-server:8090
+      CORS_ALLOWED_ORIGINS: "http://localhost:3000,http://localhost:3001,http://localhost:3002"
+    ports:
+      - "8080:8080"
+    depends_on:
+      auth-service:
+        condition: service_healthy
+      ticket-service:
+        condition: service_healthy
+      customer-service:
+        condition: service_healthy
+      faq-service:
+        condition: service_healthy
+      tenant-service:
+        condition: service_healthy
+    healthcheck:
+      <<: *svc-healthcheck
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health 2>/dev/null | grep -q '\"UP\"'"]
+
+  # ─────────────────────────────────────────────────────────────
+  # Frontend — customer-portal  :3000
+  # ─────────────────────────────────────────────────────────────
+  customer-portal:
+    image: nginx:alpine
+    container_name: supporthub-customer-portal
+    restart: unless-stopped
+    networks:
+      - supporthub-network
+    volumes:
+      - ../../frontend/apps/customer-portal/dist:/usr/share/nginx/html:ro
+      - ./nginx/spa.conf:/etc/nginx/conf.d/default.conf:ro
+    ports:
+      - "3000:80"
+    depends_on:
+      - api-gateway
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:80/ >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+
+  # ─────────────────────────────────────────────────────────────
+  # Frontend — agent-dashboard  :3001
+  # ─────────────────────────────────────────────────────────────
+  agent-dashboard:
+    image: nginx:alpine
+    container_name: supporthub-agent-dashboard
+    restart: unless-stopped
+    networks:
+      - supporthub-network
+    volumes:
+      - ../../frontend/apps/agent-dashboard/dist:/usr/share/nginx/html:ro
+      - ./nginx/spa.conf:/etc/nginx/conf.d/default.conf:ro
+    ports:
+      - "3001:80"
+    depends_on:
+      - api-gateway
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:80/ >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+
+  # ─────────────────────────────────────────────────────────────
+  # Frontend — admin-portal  :3002
+  # ─────────────────────────────────────────────────────────────
+  admin-portal:
+    image: nginx:alpine
+    container_name: supporthub-admin-portal
+    restart: unless-stopped
+    networks:
+      - supporthub-network
+    volumes:
+      - ../../frontend/apps/admin-portal/dist:/usr/share/nginx/html:ro
+      - ./nginx/spa.conf:/etc/nginx/conf.d/default.conf:ro
+    ports:
+      - "3002:80"
+    depends_on:
+      - api-gateway
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:80/ >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s

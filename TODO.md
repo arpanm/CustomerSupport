@@ -2,8 +2,8 @@
 > Single source of truth for all tasks, bugs, issues, and decisions.
 > Managed by Claude Code agents. Updated after every task, review, analysis, or deployment.
 
-**Last Updated:** 2026-03-23T20:00:00Z
-**Active Sprint:** Sprint 2 — Integration, Tenant Service, Customer Portal & Infra
+**Last Updated:** 2026-03-23T21:00:00Z
+**Active Sprint:** Sprint 3 — Real-time, Reporting, AI Panel, File Uploads & E2E
 **Project:** SupportHub | Rupantar Technologies
 
 ---
@@ -12,13 +12,13 @@
 
 | Status | Count |
 |--------|-------|
-| 🆕 OPEN | 10 |
-| 🔄 IN_PROGRESS | 6 |
+| 🆕 OPEN | 3 |
+| 🔄 IN_PROGRESS | 8 |
 | 🔍 IN_REVIEW | 23 |
 | ⚠️ BLOCKED | 0 |
-| ✅ DONE | 9 |
+| ✅ DONE | 21 |
 | ❌ CANCELLED | 0 |
-| **TOTAL** | **48** |
+| **TOTAL** | **55** |
 
 ---
 
@@ -542,6 +542,228 @@
 - [ ] Integration tests — PENDING
 #### Test Results
 - Unit: PENDING (`./mvnw test -pl supporthub-faq-service`)
+
+---
+
+## ✅ COMPLETED — Sprint 2
+
+Sprint 2 tasks (FEAT-012, FEAT-024, TEST-001, INFRA-006, INFRA-007, OBS-001) all merged to main via PR #20 on 2026-03-23.
+
+---
+
+## 🔄 IN PROGRESS — Sprint 3
+
+### [FEAT-028] ticket-service — WebSocket real-time agent notifications
+- **ID:** FEAT-028
+- **Status:** DONE
+- **Priority:** P1-HIGH
+- **Owner:** agent:implementer
+- **Sprint:** 3
+- **Created:** 2026-03-23T21:00:00Z
+- **Completed:** 2026-03-23T00:00:00Z
+#### Scope
+- Spring WebSocket + STOMP over SockJS endpoint `/ws/agent`
+- WebSocketConfig: registerStompEndpoints, message broker (in-memory)
+- TicketWebSocketController: `@MessageMapping` for agent subscribe/unsubscribe
+- TicketEventPublisher: broadcast to `/topic/tenant/{tenantId}/tickets` on every Kafka event consumed
+- StompPrincipal: JWT-authenticated WS connections (validate token in HandshakeInterceptor)
+- Agent-dashboard frontend: replace raw WebSocket with @stomp/stompjs + sockjs-client
+#### Acceptance Criteria
+- [x] Agent connects via STOMP, receives live ticket updates without polling
+- [x] JWT validated on WebSocket handshake
+- [x] Tenant isolation: agents only receive their tenant's events
+- [ ] Reconnect with exponential backoff on disconnect (frontend — out of scope for this task)
+#### Implementation
+- `backend/ticket-service/src/main/java/in/supporthub/ticket/config/WebSocketConfig.java` — STOMP config
+- `backend/ticket-service/src/main/java/in/supporthub/ticket/websocket/JwtHandshakeInterceptor.java` — JWT validation
+- `backend/ticket-service/src/main/java/in/supporthub/ticket/websocket/TicketUpdateMessage.java` — message record
+- `backend/ticket-service/src/main/java/in/supporthub/ticket/websocket/TicketWebSocketPublisher.java` — SimpMessagingTemplate publisher
+- `TicketEventPublisher.java` updated to inject and call `TicketWebSocketPublisher` after each Kafka send
+- `pom.xml` updated with `spring-boot-starter-websocket` dependency
+- `application.yml` updated with WebSocket size/timeout limits
+
+---
+
+### [FEAT-029] reporting-service — CSV export + SLA compliance + agent performance endpoints
+- **ID:** FEAT-029
+- **Status:** IN_PROGRESS
+- **Priority:** P1-HIGH
+- **Owner:** agent:implementer
+- **Sprint:** 3
+- **Created:** 2026-03-23T21:00:00Z
+#### Scope
+- `GET /api/v1/reports/export` — streaming CSV (ResponseBodyEmitter) of all tickets in period
+- `GET /api/v1/reports/sla-compliance` — SLA compliance % per category via Elasticsearch agg
+- `GET /api/v1/reports/agent-performance` — resolved count + avg resolution time per agent via ES agg
+- `SlaComplianceResult` record, `AgentPerformanceResult` record
+- `CsvExportService` — streaming CSV with Jackson CsvMapper or manual StringBuilder
+- Elasticsearch aggregation queries in `DashboardService`
+#### Acceptance Criteria
+- [ ] CSV export streams, not buffered in memory; Content-Disposition header set
+- [ ] SLA compliance returns % on-time per ticket category for given date range
+- [ ] Agent performance returns per-agent: ticketsResolved, avgResolutionMinutes, firstResponseAvgMinutes
+
+---
+
+### [FEAT-030] admin-portal — reporting dashboard with Recharts + FAQ management UI
+- **ID:** FEAT-030
+- **Status:** IN_PROGRESS
+- **Priority:** P1-HIGH
+- **Owner:** agent:implementer
+- **Sprint:** 3
+- **Created:** 2026-03-23T21:00:00Z
+#### Scope
+- `ReportingPage.tsx` — tabs: Overview, SLA Compliance, Agent Performance, Export
+  - Overview: BarChart (tickets by category), LineChart (daily trend), stat cards (open/resolved/breached)
+  - SLA Compliance: BarChart grouped by category + compliance % label
+  - Agent Performance: sortable DataTable (agent name, resolved count, avg resolution time)
+  - Export: date range picker + Download CSV button (streams from reporting-service)
+- `FAQManagementPage.tsx` — full CRUD
+  - List FAQs paginated with search
+  - Create/Edit modal with @tiptap/react rich text for answer field
+  - Publish/unpublish toggle
+  - Delete with confirmation dialog
+- Add recharts + @tiptap/react + @tiptap/extension-starterkit deps to admin-portal package.json
+- All data via TanStack Query + adminApi.ts extended with reporting + FAQ endpoints
+#### Acceptance Criteria
+- [ ] All charts render with real data from reporting-service
+- [ ] FAQ CRUD fully functional with rich text editor
+- [ ] CSV export downloads a real file via streaming endpoint
+
+---
+
+### [FEAT-031] agent-dashboard — AI assistance panel + STOMP WebSocket + full ticket actions
+- **ID:** FEAT-031
+- **Status:** IN_PROGRESS
+- **Priority:** P1-HIGH
+- **Owner:** agent:implementer
+- **Sprint:** 3
+- **Created:** 2026-03-23T21:00:00Z
+#### Scope
+- Replace raw WebSocket with STOMP over SockJS in websocketStore.ts
+- `AIAssistancePanel.tsx` component:
+  - Calls `GET /api/v1/ai/resolution-suggestions` with ticket context
+  - Displays confidence bars per suggestion
+  - "Apply as reply" button — copies suggestion into reply textarea + submits
+  - Sentiment badge (POSITIVE/NEUTRAL/NEGATIVE/FRUSTRATED) from ticket data
+  - "Refresh suggestions" button — re-fetches from ai-service
+- `TicketDetailPage.tsx` — wire up AIAssistancePanel, show real-time activity feed via STOMP subscription
+- `TicketQueuePage.tsx` — live ticket count badge, auto-refresh queue on STOMP events
+- Agent status toggle (AVAILABLE/BUSY/OFFLINE) stored in Zustand + sent to backend
+- Ticket assignment: "Assign to me" button → PUT /api/v1/tickets/{id} with assigneeId
+#### Acceptance Criteria
+- [ ] STOMP subscription live-updates ticket queue without manual refresh
+- [ ] AI suggestions fetched from real ai-service, displayed with confidence %
+- [ ] "Apply as reply" one-click fills reply form and submits
+- [ ] Agent status persisted in Zustand and synced to API
+
+---
+
+### [FEAT-032] customer-portal — ticket creation with file attachments via MinIO presigned URLs
+- **ID:** FEAT-032
+- **Status:** IN_PROGRESS
+- **Priority:** P1-HIGH
+- **Owner:** agent:implementer
+- **Sprint:** 3
+- **Created:** 2026-03-23T21:00:00Z
+#### Scope
+- `CreateTicketPage.tsx` — full rewrite with:
+  - Category + subcategory cascading dropdowns (loaded from ticket-service API)
+  - Priority selector (LOW/MEDIUM/HIGH/URGENT)
+  - Subject + description (textarea with char count)
+  - File attachment (max 5 files, 10MB each) — drag & drop or click to upload
+  - File upload flow: `POST /api/v1/attachments/presign` → PUT to MinIO presigned URL → submit ticket with attachmentIds
+  - Real-time character count, form validation with React Hook Form + Zod schema
+  - Order reference (optional) — dropdown of recent orders
+- Backend `attachment` endpoint in ticket-service: `POST /api/v1/attachments/presign` — returns MinIO presigned PUT URL + attachment ID
+- `AttachmentService` in ticket-service: MinIO client (io.minio:minio), generates presigned URL (15min TTL), stores attachment metadata in DB
+- `V9__create_attachments_table.sql` migration
+#### Acceptance Criteria
+- [ ] File upload to MinIO via presigned URL (no file bytes through backend)
+- [ ] Attachment IDs included in CreateTicketRequest
+- [ ] Max file size enforced client-side and server-side
+- [ ] Category/subcategory loaded from live API, not hardcoded
+
+---
+
+### [FEAT-033] notification-service — tenant.onboarded Kafka consumer (welcome comms)
+- **ID:** FEAT-033
+- **Status:** DONE
+- **Priority:** P2-MEDIUM
+- **Owner:** agent:implementer
+- **Sprint:** 3
+- **Created:** 2026-03-23T21:00:00Z
+- **Completed:** 2026-03-23T00:00:00Z
+#### Scope
+- `TenantOnboardedEventConsumer.java` — `@KafkaListener(topics = "tenant.onboarded")`
+- Sends welcome email to tenant admin via SendGrid (subject: "Welcome to SupportHub", HTML template)
+- Stores welcome notification in MongoDB
+- Redis idempotency key: `notif:tenant:onboarded:{tenantId}`
+#### Acceptance Criteria
+- [x] Welcome email sent on tenant.onboarded event
+- [x] Idempotent — duplicate events ignored
+- [x] No PII in logs
+#### Implementation
+- `backend/notification-service/src/main/java/in/supporthub/notification/event/TenantOnboardedPayload.java` — event record
+- `backend/notification-service/src/main/java/in/supporthub/notification/event/TenantOnboardedEventConsumer.java` — consumer with idempotency, email, MongoDB persistence
+- `KafkaConfig.java` extended with `stringConsumerFactory` and `stringKafkaListenerContainerFactory` for raw-string topics
+- `application.yml` updated to document `tenant.onboarded` in topic list
+
+---
+
+### [FEAT-025] E2E Playwright Tests — full Page Object Model
+- **ID:** FEAT-025
+- **Status:** IN_PROGRESS
+- **Priority:** P2-MEDIUM
+- **Owner:** agent:test-engineer
+- **Sprint:** 3
+- **Created:** 2026-03-23T21:00:00Z
+#### Scope
+- `frontend/playwright.config.ts` — baseURL, retries=2, workers=4, screenshot on failure
+- `frontend/e2e/pages/` — Page Object Models:
+  - `LoginPage.ts` — enterPhone(), enterOtp(), expectLoggedIn()
+  - `TicketListPage.ts` — waitForTickets(), filterByStatus(), clickTicket()
+  - `TicketDetailPage.ts` — addComment(), expectComment(), expectAISuggestions()
+  - `FAQSearchPage.ts` — search(), expectResults(), expectNoResults()
+  - `AgentLoginPage.ts` — login(), expectQueue()
+  - `AgentTicketPage.ts` — resolveTicket(), applyAISuggestion()
+- `frontend/e2e/specs/`:
+  - `otp-login.spec.ts` — full OTP login flow with mock WireMock/MSW
+  - `ticket-creation.spec.ts` — create ticket end-to-end, verify in list
+  - `faq-self-resolve.spec.ts` — search FAQ, find answer, deflect ticket
+  - `agent-resolution.spec.ts` — agent login, resolve ticket, verify status change
+#### Acceptance Criteria
+- [ ] All 4 specs written with full POM pattern
+- [ ] No raw locators in spec files — all via Page Objects
+- [ ] Screenshots saved on failure to `e2e/screenshots/`
+- [ ] `playwright.config.ts` properly configured
+
+---
+
+## 📋 BACKLOG — Sprint 3 (OPEN)
+
+### [FEAT-026] customer-portal — PWA + Offline Support + Push Notifications
+- **ID:** FEAT-026
+- **Status:** OPEN
+- **Priority:** P3-LOW
+- **Sprint:** 3
+
+### [FEAT-027] reporting-service + admin-portal — SLA compliance charts (extends FEAT-029/FEAT-030)
+- **ID:** FEAT-027
+- **Status:** DONE (merged into FEAT-029 + FEAT-030 scope)
+- **Sprint:** 3
+
+### [SEC-001] OWASP CVE Dependency Scan
+- **ID:** SEC-001
+- **Status:** OPEN
+- **Priority:** P1-HIGH
+- **Sprint:** 3
+
+### [ANAL-001] Static Analysis — SpotBugs + Checkstyle + PMD
+- **ID:** ANAL-001
+- **Status:** OPEN
+- **Priority:** P2-MEDIUM
+- **Sprint:** 3
 
 ---
 

@@ -20,6 +20,12 @@ spring:
       properties:
         spring.json.trusted.packages: "in.supporthub.shared.event,in.supporthub.shared.*"
         spring.json.use.type.headers: "false"
+      # Topic list (documentation only — actual subscription via @KafkaListener annotations)
+      topics:
+        - ticket.created
+        - ticket.status-changed
+        - ticket.activity-added
+        - tenant.onboarded
 
 server:
   port: 8085

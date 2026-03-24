@@ -4,6 +4,10 @@ spring:
   threads:
     virtual:
       enabled: true
+  websocket:
+    message-size-limit: 65536
+    send-buffer-size-limit: 524288
+    send-time-limit: 20000
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/supporthub}
     username: ${DB_USER:supporthub}

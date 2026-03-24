@@ -713,11 +713,12 @@ Sprint 2 tasks (FEAT-012, FEAT-024, TEST-001, INFRA-006, INFRA-007, OBS-001) all
 
 ### [FEAT-025] E2E Playwright Tests — full Page Object Model
 - **ID:** FEAT-025
-- **Status:** IN_PROGRESS
+- **Status:** DONE
 - **Priority:** P2-MEDIUM
 - **Owner:** agent:test-engineer
 - **Sprint:** 3
 - **Created:** 2026-03-23T21:00:00Z
+- **Completed:** 2026-03-24T00:00:00Z
 #### Scope
 - `frontend/playwright.config.ts` — baseURL, retries=2, workers=4, screenshot on failure
 - `frontend/e2e/pages/` — Page Object Models:
@@ -733,10 +734,15 @@ Sprint 2 tasks (FEAT-012, FEAT-024, TEST-001, INFRA-006, INFRA-007, OBS-001) all
   - `faq-self-resolve.spec.ts` — search FAQ, find answer, deflect ticket
   - `agent-resolution.spec.ts` — agent login, resolve ticket, verify status change
 #### Acceptance Criteria
-- [ ] All 4 specs written with full POM pattern
-- [ ] No raw locators in spec files — all via Page Objects
-- [ ] Screenshots saved on failure to `e2e/screenshots/`
-- [ ] `playwright.config.ts` properly configured
+- [x] All 4 specs written with full POM pattern
+- [x] No raw locators in spec files — all via Page Objects
+- [x] Screenshots saved on failure to `e2e/screenshots/`
+- [x] `playwright.config.ts` properly configured
+#### Implementation Notes
+- All 6 Page Object Models created in `frontend/e2e/pages/` using `page.getByRole`, `page.getByLabel`, `page.getByTestId`, `page.getByText` — no CSS selectors
+- `@playwright/test` not present in root `package.json`; install instructions added to `frontend/README-e2e.md`
+- Locators derived from actual component source: `LoginPage.tsx`, `TicketListPage.tsx`, `TicketDetailPage.tsx`, `FAQSearchPage.tsx`, `agent-dashboard/LoginPage.tsx`, `TicketDetailPage.tsx`, `TicketQueuePage.tsx`
+- `e2e/screenshots/` directory created for failure screenshots
 
 ---
 

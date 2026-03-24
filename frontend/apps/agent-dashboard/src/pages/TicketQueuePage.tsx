@@ -5,8 +5,10 @@ import { Card, CardContent, CardHeader, CardTitle, TicketStatusBadge, Spinner, B
 import { useAuthStore } from '../store/authStore.js';
 import { useTicketFilterStore } from '../store/ticketStore.js';
 import { useWebSocketStore } from '../store/websocketStore.js';
+import { useAgentStore } from '../store/agentStore.js';
 import { fetchTickets } from '../api/ticketApi.js';
 import type { TicketSummary } from '../api/ticketApi.js';
+import type { AgentStatus } from '../store/agentStore.js';
 
 const PRIORITY_VARIANT: Record<string, 'default' | 'destructive' | 'secondary' | 'outline'> = {
   URGENT: 'destructive',
@@ -22,6 +24,26 @@ const SENTIMENT_EMOJI: Record<string, string> = {
   positive: '😊',
   very_positive: '😄',
 };
+
+const AGENT_STATUS_LABEL: Record<AgentStatus, string> = {
+  AVAILABLE: 'Available',
+  BUSY: 'Busy',
+  OFFLINE: 'Offline',
+};
+
+const AGENT_STATUS_CLASS: Record<AgentStatus, string> = {
+  AVAILABLE: 'bg-green-100 text-green-800 hover:bg-green-200',
+  BUSY: 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200',
+  OFFLINE: 'bg-gray-100 text-gray-800 hover:bg-gray-200',
+};
+
+const AGENT_STATUS_DOT: Record<AgentStatus, string> = {
+  AVAILABLE: 'bg-green-500',
+  BUSY: 'bg-yellow-500',
+  OFFLINE: 'bg-gray-400',
+};
+
+const STATUS_CYCLE: AgentStatus[] = ['AVAILABLE', 'BUSY', 'OFFLINE'];
 
 function TicketFilters() {
   const { filter, setFilter, resetFilter } = useTicketFilterStore();
@@ -126,7 +148,8 @@ function TicketCard({ ticket }: { ticket: TicketSummary }) {
 export function TicketQueuePage() {
   const { token, user } = useAuthStore();
   const { filter } = useTicketFilterStore();
-  const { lastTicketUpdate, connect } = useWebSocketStore();
+  const { lastTicketUpdate, updateCount, resetUpdateCount, connect } = useWebSocketStore();
+  const { agentStatus, setAgentStatus } = useAgentStore();
   const queryClient = useQueryClient();
 
   useEffect(() => {
@@ -135,6 +158,7 @@ export function TicketQueuePage() {
     }
   }, [token, user?.tenantId, connect]);
 
+  // Auto-refresh ticket list on STOMP events
   useEffect(() => {
     if (lastTicketUpdate != null) {
       void queryClient.invalidateQueries({ queryKey: ['tickets', 'queue'] });
@@ -155,6 +179,13 @@ export function TicketQueuePage() {
     staleTime: 30_000,
     refetchInterval: 60_000,
   });
+
+  const handleCycleStatus = () => {
+    if (token == null) return;
+    const idx = STATUS_CYCLE.indexOf(agentStatus);
+    const next = STATUS_CYCLE[(idx + 1) % STATUS_CYCLE.length];
+    setAgentStatus(next, token);
+  };
 
   if (isLoading) {
     return (
@@ -178,11 +209,39 @@ export function TicketQueuePage() {
 
   return (
     <div className="flex flex-col gap-4">
+      {/* Header row */}
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-gray-900">Ticket Queue</h2>
-        <span className="text-sm text-gray-500">
-          {total} ticket{total !== 1 ? 's' : ''}
-        </span>
+        <div className="flex items-center gap-3">
+          <h2 className="text-2xl font-bold text-gray-900">Ticket Queue</h2>
+
+          {/* Live update count badge */}
+          {updateCount > 0 && (
+            <button
+              onClick={resetUpdateCount}
+              className="flex items-center gap-1.5 rounded-full bg-blue-600 px-2.5 py-0.5 text-xs font-medium text-white hover:bg-blue-700"
+              title="Live updates received — click to dismiss"
+            >
+              <span className="h-1.5 w-1.5 rounded-full bg-white" />
+              {updateCount} live update{updateCount !== 1 ? 's' : ''}
+            </button>
+          )}
+        </div>
+
+        <div className="flex items-center gap-3">
+          {/* Agent status toggle */}
+          <button
+            onClick={handleCycleStatus}
+            className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-colors ${AGENT_STATUS_CLASS[agentStatus]}`}
+            title="Click to change status"
+          >
+            <span className={`h-2 w-2 rounded-full ${AGENT_STATUS_DOT[agentStatus]}`} />
+            {AGENT_STATUS_LABEL[agentStatus]}
+          </button>
+
+          <span className="text-sm text-gray-500">
+            {total} ticket{total !== 1 ? 's' : ''}
+          </span>
+        </div>
       </div>
 
       <TicketFilters />

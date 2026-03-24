@@ -2,8 +2,10 @@ package in.supporthub.reporting.service;
 
 import in.supporthub.reporting.domain.TicketDocument;
 import in.supporthub.reporting.dto.AgentMetrics;
+import in.supporthub.reporting.dto.AgentPerformanceResult;
 import in.supporthub.reporting.dto.CategoryCount;
 import in.supporthub.reporting.dto.DashboardSummary;
+import in.supporthub.reporting.dto.SlaComplianceResult;
 import in.supporthub.reporting.dto.TrendPoint;
 import in.supporthub.reporting.repository.TicketDocumentRepository;
 import lombok.RequiredArgsConstructor;
@@ -245,6 +247,106 @@ public class DashboardService {
 
         return docs.stream()
                 .collect(Collectors.groupingBy(TicketDocument::getSentimentLabel, Collectors.counting()));
+    }
+
+    // -------------------------------------------------------------------------
+    // SLA compliance (new — FEAT-029)
+    // -------------------------------------------------------------------------
+
+    /**
+     * Returns SLA compliance percentages grouped by ticket category for the given tenant and period.
+     *
+     * <p>A ticket is considered "on time" when {@code slaBreached} is {@code false} or {@code null}.
+     *
+     * @param from     inclusive start of the reporting period
+     * @param to       exclusive end of the reporting period
+     * @param tenantId tenant identifier
+     * @return list of {@link SlaComplianceResult}, sorted by categoryName ascending
+     */
+    public List<SlaComplianceResult> getSlaCompliance(Instant from, Instant to, String tenantId) {
+        log.debug("Computing SLA compliance: tenantId={}, from={}, to={}", tenantId, from, to);
+
+        List<TicketDocument> docs = ticketDocumentRepository.findByTenantId(tenantId)
+                .stream()
+                .filter(d -> isInPeriod(d.getCreatedAt(), from, to))
+                .toList();
+
+        Map<String, List<TicketDocument>> byCategory = docs.stream()
+                .collect(Collectors.groupingBy(
+                        d -> d.getCategoryId() != null ? d.getCategoryId() : "UNCATEGORISED"));
+
+        return byCategory.entrySet().stream()
+                .map(entry -> {
+                    String categoryName = entry.getKey();
+                    List<TicketDocument> catDocs = entry.getValue();
+                    long total = catDocs.size();
+                    long onTime = catDocs.stream()
+                            .filter(d -> !Boolean.TRUE.equals(d.getSlaBreached()))
+                            .count();
+                    double pct = (total > 0) ? (onTime * 100.0 / total) : 0.0;
+                    return new SlaComplianceResult(categoryName, total, onTime, pct);
+                })
+                .sorted((a, b) -> a.categoryName().compareTo(b.categoryName()))
+                .collect(Collectors.toList());
+    }
+
+    // -------------------------------------------------------------------------
+    // Agent performance — extended (new — FEAT-029)
+    // -------------------------------------------------------------------------
+
+    /**
+     * Returns detailed per-agent performance metrics for the given tenant and period.
+     *
+     * <p>Includes agentEmail (stored as agentId in the document when not separately tracked),
+     * ticketsResolved, avgResolutionMinutes, and firstResponseAvgMinutes.
+     *
+     * @param from     inclusive start of the period
+     * @param to       exclusive end of the period
+     * @param tenantId tenant identifier
+     * @return list of {@link AgentPerformanceResult}, sorted by ticketsResolved descending
+     */
+    public List<AgentPerformanceResult> getAgentPerformanceResults(
+            Instant from, Instant to, String tenantId) {
+
+        log.debug("Computing agent performance results: tenantId={}, from={}, to={}",
+                tenantId, from, to);
+
+        List<TicketDocument> docs = ticketDocumentRepository.findByTenantId(tenantId)
+                .stream()
+                .filter(d -> isInPeriod(d.getCreatedAt(), from, to))
+                .filter(d -> d.getAssignedAgentId() != null && !d.getAssignedAgentId().isBlank())
+                .toList();
+
+        Map<String, List<TicketDocument>> byAgent = docs.stream()
+                .collect(Collectors.groupingBy(TicketDocument::getAssignedAgentId));
+
+        List<AgentPerformanceResult> result = new ArrayList<>();
+        for (Map.Entry<String, List<TicketDocument>> entry : byAgent.entrySet()) {
+            String agentId = entry.getKey();
+            List<TicketDocument> agentDocs = entry.getValue();
+
+            long resolved = agentDocs.stream()
+                    .filter(d -> RESOLVED_STATUS.equalsIgnoreCase(d.getStatus()))
+                    .count();
+
+            OptionalDouble avgResOpt = agentDocs.stream()
+                    .filter(d -> d.getResolutionTimeMinutes() != null)
+                    .mapToLong(TicketDocument::getResolutionTimeMinutes)
+                    .average();
+            double avgResolutionMinutes = avgResOpt.orElse(0.0);
+
+            // firstResponseAvgMinutes: derive from resolutionTimeMinutes as a proxy
+            // (dedicated firstResponseMinutes field not yet in TicketDocument).
+            // Emit 0.0 until the document model is extended.
+            double firstResponseAvgMinutes = 0.0;
+
+            // agentEmail is not stored in the read model — use agentId as display value.
+            result.add(new AgentPerformanceResult(
+                    agentId, agentId, resolved, avgResolutionMinutes, firstResponseAvgMinutes));
+        }
+
+        result.sort((a, b) -> Long.compare(b.ticketsResolved(), a.ticketsResolved()));
+        return result;
     }
 
     // -------------------------------------------------------------------------

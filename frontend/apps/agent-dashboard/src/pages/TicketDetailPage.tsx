@@ -1,16 +1,17 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle, TicketStatusBadge, Spinner, Badge } from '@supporthub/ui';
 import { useAuthStore } from '../store/authStore.js';
+import { useWebSocketStore } from '../store/websocketStore.js';
+import { AIAssistancePanel } from '../components/AIAssistancePanel.js';
 import {
   fetchTicketDetail,
   fetchActivities,
   addComment,
   updateTicketStatus,
-  fetchAiSuggestions,
 } from '../api/ticketApi.js';
-import type { TicketActivity, ResolutionSuggestion } from '../api/ticketApi.js';
+import type { TicketActivity } from '../api/ticketApi.js';
 
 const PRIORITY_VARIANT: Record<string, 'default' | 'destructive' | 'secondary' | 'outline'> = {
   URGENT: 'destructive',
@@ -53,70 +54,24 @@ function ActivityItem({ activity }: { activity: TicketActivity }) {
   );
 }
 
-function AiAssistancePanel({
-  ticketId,
-  title,
-  description,
-  categoryName,
-  token,
-  onApplySuggestion,
-}: {
-  ticketId: string;
-  title: string;
-  description: string;
-  categoryName: string;
-  token: string;
-  onApplySuggestion: (content: string) => void;
-}) {
-  const { data: suggestions, isLoading } = useQuery<ResolutionSuggestion[]>({
-    queryKey: ['ai-suggestions', ticketId],
-    queryFn: () =>
-      fetchAiSuggestions(token, ticketId, title, description, categoryName.toLowerCase().replace(/\s+/g, '_')),
-    staleTime: 5 * 60_000,
+async function assignTicket(token: string, ticketId: string, assigneeId: string): Promise<void> {
+  const res = await fetch(`/api/v1/tickets/${encodeURIComponent(ticketId)}`, {
+    method: 'PUT',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ assigneeId }),
   });
-
-  return (
-    <Card className="h-fit">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-sm">
-          <span>✨</span> AI Assistance
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        {isLoading ? (
-          <div className="flex items-center justify-center py-4">
-            <Spinner size="sm" label="Generating suggestions..." />
-          </div>
-        ) : (suggestions == null || suggestions.length === 0) ? (
-          <p className="text-center text-xs text-gray-500">No suggestions available</p>
-        ) : (
-          <div className="flex flex-col gap-3">
-            <p className="text-xs text-gray-500">Click a suggestion to apply it as a reply:</p>
-            {suggestions.map((s, i) => (
-              <button
-                key={i}
-                onClick={() => { onApplySuggestion(s.content); }}
-                className="rounded-md border border-gray-200 bg-gray-50 p-3 text-left text-sm hover:border-blue-300 hover:bg-blue-50 transition-colors"
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <span className="font-medium text-gray-900">{s.title}</span>
-                  <span className="shrink-0 rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-700">
-                    {Math.round(s.confidence * 100)}%
-                  </span>
-                </div>
-                <p className="mt-1 text-xs text-gray-600 line-clamp-3">{s.content}</p>
-              </button>
-            ))}
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
+  if (!res.ok) {
+    throw new Error(`Failed to assign ticket: ${res.status}`);
+  }
 }
 
 export function TicketDetailPage() {
   const { ticketNumber } = useParams<{ ticketNumber: string }>();
   const { token, user } = useAuthStore();
+  const { lastTicketUpdate, connect } = useWebSocketStore();
   const queryClient = useQueryClient();
 
   const [replyContent, setReplyContent] = useState('');
@@ -124,6 +79,20 @@ export function TicketDetailPage() {
 
   const safeToken = token ?? '';
   const safeTicketNumber = ticketNumber ?? '';
+
+  // Connect to STOMP WebSocket on mount
+  useEffect(() => {
+    if (token != null && user?.tenantId != null) {
+      connect(user.tenantId, token);
+    }
+  }, [token, user?.tenantId, connect]);
+
+  // Invalidate ticket and activities queries on relevant STOMP updates
+  useEffect(() => {
+    if (lastTicketUpdate == null) return;
+    void queryClient.invalidateQueries({ queryKey: ['ticket', safeTicketNumber] });
+    void queryClient.invalidateQueries({ queryKey: ['ticket', safeTicketNumber, 'activities'] });
+  }, [lastTicketUpdate, safeTicketNumber, queryClient]);
 
   const { data: ticket, isLoading: ticketLoading } = useQuery({
     queryKey: ['ticket', safeTicketNumber],
@@ -157,6 +126,16 @@ export function TicketDetailPage() {
     },
   });
 
+  const assignMutation = useMutation({
+    mutationFn: () => {
+      if (ticket == null || user == null) throw new Error('No ticket or user');
+      return assignTicket(safeToken, ticket.id, user.id);
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['ticket', safeTicketNumber] });
+    },
+  });
+
   const handleSubmitReply = () => {
     if (replyContent.trim().length === 0) return;
     addCommentMutation.mutate({ content: replyContent, isInternal });
@@ -184,6 +163,7 @@ export function TicketDetailPage() {
   const canResolve = ['OPEN', 'IN_PROGRESS', 'PENDING_CUSTOMER_RESPONSE'].includes(ticket.status);
   const canEscalate = ['OPEN', 'IN_PROGRESS'].includes(ticket.status);
   const canReopen = ['RESOLVED', 'CLOSED'].includes(ticket.status);
+  const isAssignedToMe = ticket.assignedAgentId != null && user?.id != null && ticket.assignedAgentId === user.id;
 
   return (
     <div className="flex flex-col gap-4">
@@ -191,7 +171,7 @@ export function TicketDetailPage() {
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
           <Link to="/" className="text-sm text-blue-600 hover:underline">
-            ← Back to queue
+            Back to queue
           </Link>
           <h2 className="mt-1 text-xl font-bold text-gray-900">{ticket.title}</h2>
           <div className="mt-1 flex items-center gap-3 text-sm text-gray-500">
@@ -211,7 +191,7 @@ export function TicketDetailPage() {
       {/* SLA warning */}
       {ticket.slaBreached && (
         <div className="rounded-md border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
-          ⚠️ SLA has been breached
+          SLA has been breached
         </div>
       )}
 
@@ -315,7 +295,18 @@ export function TicketDetailPage() {
           {/* Ticket info */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-sm">Ticket Info</CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm">Ticket Info</CardTitle>
+                {!isAssignedToMe && (
+                  <button
+                    onClick={() => { assignMutation.mutate(); }}
+                    disabled={assignMutation.isPending}
+                    className="rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100 disabled:opacity-50"
+                  >
+                    {assignMutation.isPending ? 'Assigning...' : 'Assign to me'}
+                  </button>
+                )}
+              </div>
             </CardHeader>
             <CardContent className="flex flex-col gap-2 text-sm">
               <div className="flex justify-between">
@@ -324,7 +315,9 @@ export function TicketDetailPage() {
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-500">Assigned</span>
-                <span className="font-medium">{ticket.assignedAgentId ?? 'Unassigned'}</span>
+                <span className="font-medium">
+                  {isAssignedToMe ? 'You' : (ticket.assignedAgentId ?? 'Unassigned')}
+                </span>
               </div>
               {ticket.sentimentLabel != null && (
                 <div className="flex justify-between">
@@ -347,15 +340,16 @@ export function TicketDetailPage() {
             </CardContent>
           </Card>
 
-          {/* AI suggestions panel */}
-          {user?.role !== undefined && (
-            <AiAssistancePanel
+          {/* AI Assistance Panel */}
+          {user?.role != null && (
+            <AIAssistancePanel
               ticketId={ticket.id}
-              title={ticket.title}
-              description={ticket.description}
-              categoryName={ticket.categoryName}
               token={safeToken}
-              onApplySuggestion={(content) => { setReplyContent(content); setIsInternal(false); }}
+              sentiment={ticket.sentimentLabel ?? undefined}
+              onApply={(text) => {
+                setReplyContent(text);
+                setIsInternal(false);
+              }}
             />
           )}
         </div>

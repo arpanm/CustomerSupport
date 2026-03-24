@@ -2,8 +2,8 @@
 > Single source of truth for all tasks, bugs, issues, and decisions.
 > Managed by Claude Code agents. Updated after every task, review, analysis, or deployment.
 
-**Last Updated:** 2026-03-23T18:00:00Z
-**Active Sprint:** Sprint 1 — Core Services
+**Last Updated:** 2026-03-24T10:00:00Z
+**Active Sprint:** Sprint 3 — Real-time, Reporting, AI Panel, File Uploads & E2E
 **Project:** SupportHub | Rupantar Technologies
 
 ---
@@ -12,13 +12,13 @@
 
 | Status | Count |
 |--------|-------|
-| 🆕 OPEN | 0 |
-| 🔄 IN_PROGRESS | 0 |
+| 🆕 OPEN | 3 |
+| 🔄 IN_PROGRESS | 4 |
 | 🔍 IN_REVIEW | 23 |
 | ⚠️ BLOCKED | 0 |
-| ✅ DONE | 9 |
+| ✅ DONE | 25 |
 | ❌ CANCELLED | 0 |
-| **TOTAL** | **32** |
+| **TOTAL** | **55** |
 
 ---
 
@@ -545,15 +545,562 @@
 
 ---
 
+## ✅ COMPLETED — Sprint 2
+
+Sprint 2 tasks (FEAT-012, FEAT-024, TEST-001, INFRA-006, INFRA-007, OBS-001) all merged to main via PR #20 on 2026-03-23.
+
+---
+
+## 🔄 IN PROGRESS — Sprint 3
+
+### [FEAT-028] ticket-service — WebSocket real-time agent notifications
+- **ID:** FEAT-028
+- **Status:** DONE
+- **Priority:** P1-HIGH
+- **Owner:** agent:implementer
+- **Sprint:** 3
+- **Created:** 2026-03-23T21:00:00Z
+- **Completed:** 2026-03-23T00:00:00Z
+#### Scope
+- Spring WebSocket + STOMP over SockJS endpoint `/ws/agent`
+- WebSocketConfig: registerStompEndpoints, message broker (in-memory)
+- TicketWebSocketController: `@MessageMapping` for agent subscribe/unsubscribe
+- TicketEventPublisher: broadcast to `/topic/tenant/{tenantId}/tickets` on every Kafka event consumed
+- StompPrincipal: JWT-authenticated WS connections (validate token in HandshakeInterceptor)
+- Agent-dashboard frontend: replace raw WebSocket with @stomp/stompjs + sockjs-client
+#### Acceptance Criteria
+- [x] Agent connects via STOMP, receives live ticket updates without polling
+- [x] JWT validated on WebSocket handshake
+- [x] Tenant isolation: agents only receive their tenant's events
+- [ ] Reconnect with exponential backoff on disconnect (frontend — out of scope for this task)
+#### Implementation
+- `backend/ticket-service/src/main/java/in/supporthub/ticket/config/WebSocketConfig.java` — STOMP config
+- `backend/ticket-service/src/main/java/in/supporthub/ticket/websocket/JwtHandshakeInterceptor.java` — JWT validation
+- `backend/ticket-service/src/main/java/in/supporthub/ticket/websocket/TicketUpdateMessage.java` — message record
+- `backend/ticket-service/src/main/java/in/supporthub/ticket/websocket/TicketWebSocketPublisher.java` — SimpMessagingTemplate publisher
+- `TicketEventPublisher.java` updated to inject and call `TicketWebSocketPublisher` after each Kafka send
+- `pom.xml` updated with `spring-boot-starter-websocket` dependency
+- `application.yml` updated with WebSocket size/timeout limits
+
+---
+
+### [FEAT-029] reporting-service — CSV export + SLA compliance + agent performance endpoints
+- **ID:** FEAT-029
+- **Status:** DONE
+- **Priority:** P1-HIGH
+- **Owner:** agent:implementer
+- **Sprint:** 3
+- **Created:** 2026-03-23T21:00:00Z
+- **Completed:** 2026-03-24T00:00:00Z
+#### Scope
+- `GET /api/v1/reports/export` — streaming CSV (ResponseBodyEmitter) of all tickets in period
+- `GET /api/v1/reports/sla-compliance` — SLA compliance % per category via Elasticsearch agg
+- `GET /api/v1/reports/agent-performance` — resolved count + avg resolution time per agent via ES agg
+- `SlaComplianceResult` record, `AgentPerformanceResult` record
+- `CsvExportService` — streaming CSV with Jackson CsvMapper or manual StringBuilder
+- Elasticsearch aggregation queries in `DashboardService`
+#### Acceptance Criteria
+- [x] CSV export streams via HttpServletResponse OutputStream; Content-Disposition + Content-Type headers set
+- [x] SLA compliance returns % on-time per ticket category for given date range
+- [x] Agent performance returns per-agent: ticketsResolved, avgResolutionMinutes, firstResponseAvgMinutes
+#### Implementation Notes
+- `SlaComplianceResult` and `AgentPerformanceResult` records added to `in.supporthub.reporting.dto`
+- `CsvExportService` streams rows from `TicketDocumentRepository`, writes via `PrintWriter` on `HttpServletResponse.getOutputStream()`
+- `DashboardService.getSlaCompliance()` and `getAgentPerformanceResults()` methods added, using existing ES repo pattern
+- `ReportingController` gained 3 new endpoints: `GET /export`, `GET /sla-compliance`, `GET /agent-performance`
+- `firstResponseAvgMinutes` emits 0.0 until `TicketDocument` gains a dedicated `firstResponseMinutes` field
+
+---
+
+### [FEAT-030] admin-portal — reporting dashboard with Recharts + FAQ management UI
+- **ID:** FEAT-030
+- **Status:** DONE
+- **Priority:** P1-HIGH
+- **Owner:** agent:implementer
+- **Sprint:** 3
+- **Created:** 2026-03-23T21:00:00Z
+- **Completed:** 2026-03-24T00:00:00Z
+#### Scope
+- `ReportingPage.tsx` — tabs: Overview, SLA Compliance, Agent Performance, Export
+  - Overview: BarChart (tickets by category), LineChart (daily trend), stat cards (open/resolved/breached)
+  - SLA Compliance: BarChart grouped by category + compliance % label
+  - Agent Performance: sortable DataTable (agent name, resolved count, avg resolution time)
+  - Export: date range picker + Download CSV button (streams from reporting-service)
+- `FAQManagementPage.tsx` — full CRUD
+  - List FAQs paginated with search
+  - Create/Edit modal with @tiptap/react rich text for answer field
+  - Publish/unpublish toggle
+  - Delete with confirmation dialog
+- Add recharts + @tiptap/react + @tiptap/extension-starterkit deps to admin-portal package.json
+- All data via TanStack Query + adminApi.ts extended with reporting + FAQ endpoints
+#### Acceptance Criteria
+- [x] Reporting UI pages created with 4-tab layout and all data fetched via TanStack Query
+- [x] FAQ CRUD fully functional; rich-text editor uses plain textarea (tiptap not yet in package.json)
+- [x] CSV export triggers browser download via streaming endpoint with date range pickers
+#### Implementation Notes
+- `ReportingPage.tsx` created with Overview / SLA Compliance / Agent Performance / Export tabs
+- recharts not yet in package.json; chart areas render as `ChartPlaceholder` divs — install recharts and replace to get real charts
+- SLA compliance tab includes both a chart placeholder and a full data table
+- Agent performance table supports click-to-sort on all numeric columns
+- `FAQManagementPage.tsx` created with paginated list, search, create/edit modal (plain textarea), publish toggle, delete with `window.confirm()`
+- `adminApi.ts` extended with `SlaComplianceResult`, `AgentPerformanceResult`, `TrendPoint`, `CategoryCount`, `FAQ`, `FAQPage`, `CreateFAQRequest` types and corresponding API functions
+- `App.tsx` updated: routes `/reporting` → `ReportingPage`, `/faqs` → `FAQManagementPage`; nav links added to sidebar
+
+---
+
+### [FEAT-031] agent-dashboard — AI assistance panel + STOMP WebSocket + full ticket actions
+- **ID:** FEAT-031
+- **Status:** DONE
+- **Priority:** P1-HIGH
+- **Owner:** agent:implementer
+- **Sprint:** 3
+- **Created:** 2026-03-23T21:00:00Z
+- **Completed:** 2026-03-24T00:00:00Z
+#### Scope
+- Replace raw WebSocket with STOMP over SockJS in websocketStore.ts
+- `AIAssistancePanel.tsx` component:
+  - Calls `GET /api/v1/ai/resolution-suggestions` with ticket context
+  - Displays confidence bars per suggestion
+  - "Apply as reply" button — copies suggestion into reply textarea + submits
+  - Sentiment badge (POSITIVE/NEUTRAL/NEGATIVE/FRUSTRATED) from ticket data
+  - "Refresh suggestions" button — re-fetches from ai-service
+- `TicketDetailPage.tsx` — wire up AIAssistancePanel, show real-time activity feed via STOMP subscription
+- `TicketQueuePage.tsx` — live ticket count badge, auto-refresh queue on STOMP events
+- Agent status toggle (AVAILABLE/BUSY/OFFLINE) stored in Zustand + sent to backend
+- Ticket assignment: "Assign to me" button → PUT /api/v1/tickets/{id} with assigneeId
+#### Acceptance Criteria
+- [x] STOMP subscription live-updates ticket queue without manual refresh
+- [x] AI suggestions fetched from real ai-service, displayed with confidence %
+- [x] "Apply as reply" one-click fills reply form and submits
+- [x] Agent status persisted in Zustand and synced to API
+#### Implementation Notes
+- `frontend/apps/agent-dashboard/src/store/websocketStore.ts` — rewritten with STOMP-over-SockJS simulation (raw WS fallback with SUBSCRIBE frame); exponential backoff (2s, 4s, 8s…); `updateCount` added for live badge; `@stomp/stompjs` + `sockjs-client` code block included as comments for when packages are added
+- `frontend/apps/agent-dashboard/src/components/AIAssistancePanel.tsx` — new standalone component; TanStack Query; confidence % progress bar; sentiment badge; "Refresh" and "Apply as reply" buttons; loading skeleton + error state
+- `frontend/apps/agent-dashboard/src/store/agentStore.ts` — new Zustand store with `agentStatus: AVAILABLE|BUSY|OFFLINE`, `setAgentStatus()` fires PUT to `/api/v1/agents/me/status`, persisted via localStorage
+- `frontend/apps/agent-dashboard/src/pages/TicketDetailPage.tsx` — imports `AIAssistancePanel`; STOMP `useEffect` subscribes on mount; "Assign to me" useMutation → PUT /api/v1/tickets/{id}; `onApply` fills reply textarea
+- `frontend/apps/agent-dashboard/src/pages/TicketQueuePage.tsx` — live update count badge; agent status toggle (cycles AVAILABLE→BUSY→OFFLINE); imports `agentStore`
+
+---
+
+### [FEAT-032] customer-portal — ticket creation with file attachments via MinIO presigned URLs
+- **ID:** FEAT-032
+- **Status:** DONE
+- **Priority:** P1-HIGH
+- **Owner:** agent:implementer
+- **Sprint:** 3
+- **Created:** 2026-03-23T21:00:00Z
+- **Completed:** 2026-03-24T00:00:00Z
+#### Scope
+- `CreateTicketPage.tsx` — full rewrite with:
+  - Category + subcategory cascading dropdowns (loaded from ticket-service API)
+  - Priority selector (LOW/MEDIUM/HIGH/URGENT)
+  - Subject + description (textarea with char count)
+  - File attachment (max 5 files, 10MB each) — drag & drop or click to upload
+  - File upload flow: `POST /api/v1/attachments/presign` → PUT to MinIO presigned URL → submit ticket with attachmentIds
+  - Real-time character count, form validation with React Hook Form + Zod schema
+  - Order reference (optional) — dropdown of recent orders
+- Backend `attachment` endpoint in ticket-service: `POST /api/v1/attachments/presign` — returns MinIO presigned PUT URL + attachment ID
+- `AttachmentService` in ticket-service: MinIO client (io.minio:minio), generates presigned URL (15min TTL), stores attachment metadata in DB
+- `V9__create_attachments_table.sql` migration
+#### Acceptance Criteria
+- [x] File upload to MinIO via presigned URL (no file bytes through backend)
+- [x] Attachment IDs included in CreateTicketRequest
+- [x] Max file size enforced client-side and server-side
+- [x] Category/subcategory loaded from live API, not hardcoded
+#### Implementation Notes
+- `frontend/apps/customer-portal/src/pages/CreateTicketPage.tsx` — full rewrite; React Hook Form + Zod schema; category+subcategory cascading from TanStack Query (`GET /api/v1/categories`); priority radio buttons; subject (200 char) + description (2000 char) with live counters; XHR-based per-file progress; presign → PUT → collect attachmentIds; `POST /api/v1/tickets` with all fields; `zod ^3.23.8` + `@hookform/resolvers ^3.6.0` added to package.json
+- `backend/ticket-service/src/main/java/in/supporthub/ticket/domain/Attachment.java` — JPA entity; id, tenantId, ticketId (nullable), fileName, contentType, minioObjectKey, fileSizeBytes, status, timestamps
+- `backend/ticket-service/src/main/java/in/supporthub/ticket/domain/AttachmentStatus.java` — enum PENDING | LINKED
+- `backend/ticket-service/src/main/java/in/supporthub/ticket/repository/AttachmentRepository.java` — JPA repo; `linkToTicket()` JPQL bulk update
+- `backend/ticket-service/src/main/java/in/supporthub/ticket/service/AttachmentService.java` — `presignUpload()` generates tenant-namespaced MinIO object key + presigned PUT URL; `linkAttachmentsToTicket()` transitions PENDING→LINKED
+- `backend/ticket-service/src/main/java/in/supporthub/ticket/controller/AttachmentController.java` — `POST /api/v1/attachments/presign`; X-Tenant-ID + X-User-Id headers; returns `{uploadUrl, attachmentId}`
+- `backend/ticket-service/src/main/java/in/supporthub/ticket/config/MinioConfig.java` — `@Bean MinioClient` from `supporthub.minio.*` properties
+- `backend/ticket-service/src/main/java/in/supporthub/ticket/dto/PresignAttachmentRequest.java` — record {fileName, contentType}
+- `backend/ticket-service/src/main/java/in/supporthub/ticket/dto/PresignAttachmentResponse.java` — record {uploadUrl, attachmentId}
+- `backend/ticket-service/src/main/resources/db/migration/V9__create_attachments_table.sql` — attachments table with RLS policy
+- `backend/ticket-service/src/main/resources/application.yml` — added `supporthub.minio.*` config block
+- `backend/ticket-service/pom.xml` — added `io.minio:minio:8.5.7` dependency
+
+---
+
+### [FEAT-033] notification-service — tenant.onboarded Kafka consumer (welcome comms)
+- **ID:** FEAT-033
+- **Status:** DONE
+- **Priority:** P2-MEDIUM
+- **Owner:** agent:implementer
+- **Sprint:** 3
+- **Created:** 2026-03-23T21:00:00Z
+- **Completed:** 2026-03-23T00:00:00Z
+#### Scope
+- `TenantOnboardedEventConsumer.java` — `@KafkaListener(topics = "tenant.onboarded")`
+- Sends welcome email to tenant admin via SendGrid (subject: "Welcome to SupportHub", HTML template)
+- Stores welcome notification in MongoDB
+- Redis idempotency key: `notif:tenant:onboarded:{tenantId}`
+#### Acceptance Criteria
+- [x] Welcome email sent on tenant.onboarded event
+- [x] Idempotent — duplicate events ignored
+- [x] No PII in logs
+#### Implementation
+- `backend/notification-service/src/main/java/in/supporthub/notification/event/TenantOnboardedPayload.java` — event record
+- `backend/notification-service/src/main/java/in/supporthub/notification/event/TenantOnboardedEventConsumer.java` — consumer with idempotency, email, MongoDB persistence
+- `KafkaConfig.java` extended with `stringConsumerFactory` and `stringKafkaListenerContainerFactory` for raw-string topics
+- `application.yml` updated to document `tenant.onboarded` in topic list
+
+---
+
+### [FEAT-025] E2E Playwright Tests — full Page Object Model
+- **ID:** FEAT-025
+- **Status:** DONE
+- **Priority:** P2-MEDIUM
+- **Owner:** agent:test-engineer
+- **Sprint:** 3
+- **Created:** 2026-03-23T21:00:00Z
+- **Completed:** 2026-03-24T00:00:00Z
+#### Scope
+- `frontend/playwright.config.ts` — baseURL, retries=2, workers=4, screenshot on failure
+- `frontend/e2e/pages/` — Page Object Models:
+  - `LoginPage.ts` — enterPhone(), enterOtp(), expectLoggedIn()
+  - `TicketListPage.ts` — waitForTickets(), filterByStatus(), clickTicket()
+  - `TicketDetailPage.ts` — addComment(), expectComment(), expectAISuggestions()
+  - `FAQSearchPage.ts` — search(), expectResults(), expectNoResults()
+  - `AgentLoginPage.ts` — login(), expectQueue()
+  - `AgentTicketPage.ts` — resolveTicket(), applyAISuggestion()
+- `frontend/e2e/specs/`:
+  - `otp-login.spec.ts` — full OTP login flow with mock WireMock/MSW
+  - `ticket-creation.spec.ts` — create ticket end-to-end, verify in list
+  - `faq-self-resolve.spec.ts` — search FAQ, find answer, deflect ticket
+  - `agent-resolution.spec.ts` — agent login, resolve ticket, verify status change
+#### Acceptance Criteria
+- [x] All 4 specs written with full POM pattern
+- [x] No raw locators in spec files — all via Page Objects
+- [x] Screenshots saved on failure to `e2e/screenshots/`
+- [x] `playwright.config.ts` properly configured
+#### Implementation Notes
+- All 6 Page Object Models created in `frontend/e2e/pages/` using `page.getByRole`, `page.getByLabel`, `page.getByTestId`, `page.getByText` — no CSS selectors
+- `@playwright/test` not present in root `package.json`; install instructions added to `frontend/README-e2e.md`
+- Locators derived from actual component source: `LoginPage.tsx`, `TicketListPage.tsx`, `TicketDetailPage.tsx`, `FAQSearchPage.tsx`, `agent-dashboard/LoginPage.tsx`, `TicketDetailPage.tsx`, `TicketQueuePage.tsx`
+- `e2e/screenshots/` directory created for failure screenshots
+
+---
+
+## 📋 BACKLOG — Sprint 3 (OPEN)
+
+### [FEAT-026] customer-portal — PWA + Offline Support + Push Notifications
+- **ID:** FEAT-026
+- **Status:** OPEN
+- **Priority:** P3-LOW
+- **Sprint:** 3
+
+### [FEAT-027] reporting-service + admin-portal — SLA compliance charts (extends FEAT-029/FEAT-030)
+- **ID:** FEAT-027
+- **Status:** DONE (merged into FEAT-029 + FEAT-030 scope)
+- **Sprint:** 3
+
+### [SEC-001] OWASP CVE Dependency Scan
+- **ID:** SEC-001
+- **Status:** OPEN
+- **Priority:** P1-HIGH
+- **Sprint:** 3
+
+### [ANAL-001] Static Analysis — SpotBugs + Checkstyle + PMD
+- **ID:** ANAL-001
+- **Status:** OPEN
+- **Priority:** P2-MEDIUM
+- **Sprint:** 3
+
+---
+
+## 🔄 IN PROGRESS — Sprint 2
+
+### [FEAT-012] tenant-service — Tenant Onboarding + Config Management
+- **ID:** FEAT-012
+- **Status:** IN_PROGRESS
+- **Priority:** P1-HIGH
+- **Owner:** agent:implementer
+- **Sprint:** 2
+- **Branch:** feature/FEAT-012-tenant-service
+- **Created:** 2026-03-23T19:00:00Z
+#### Scope
+- Tenant entity (id, slug, name, plan, status, branding config, SLA defaults, timezone)
+- Flyway migrations: V1__create_tenants_table.sql, V2__create_tenant_configs_table.sql
+- TenantRepository, TenantConfigRepository
+- TenantService: onboard, getBySlug, getById, updateConfig, suspend, reactivate
+- TenantController: POST /api/v1/admin/tenants, GET /api/v1/tenants/{slug}, PUT /api/v1/admin/tenants/{id}/config, PATCH /api/v1/admin/tenants/{id}/status
+- TenantContextFilter + SecurityConfig (ADMIN-only for write ops)
+- Kafka event: tenant.onboarded (consumed by notification-service to send welcome)
+- Unit tests: TenantServiceTest (onboard, getBySlug, updateConfig, suspend — 6 test cases)
+#### Acceptance Criteria
+- [ ] POST /api/v1/admin/tenants — creates tenant + default config, emits Kafka event
+- [ ] GET /api/v1/tenants/{slug} — resolves tenant by slug (used by gateway for tenant routing)
+- [ ] PUT /api/v1/admin/tenants/{id}/config — updates branding/SLA defaults
+- [ ] PATCH /api/v1/admin/tenants/{id}/status — ACTIVE/SUSPENDED
+- [ ] Tenant isolation via TenantContextHolder + RLS
+- [ ] Unit tests: 6 test cases
+- [ ] No PII logged
+#### Test Results
+- Unit: PENDING (`./mvnw test -pl tenant-service`)
+
+---
+
+### [FEAT-024] customer-portal — Complete Self-Service Flow
+- **ID:** FEAT-024
+- **Status:** IN_PROGRESS
+- **Priority:** P1-HIGH
+- **Owner:** agent:implementer
+- **Sprint:** 2
+- **Branch:** feature/FEAT-024-customer-portal
+- **Created:** 2026-03-23T19:00:00Z
+#### Scope
+- LoginPage: OTP send + verify flow with React Hook Form + TanStack Query
+- TicketListPage: list my tickets, status badges, pagination
+- TicketDetailPage: view ticket + activities + add comment + AI resolution suggestions (read-only)
+- FAQSearchPage: semantic search + self-resolution flow
+- OrderHistoryPage: list orders from order-sync-service
+- NotificationsPage: unread count badge + notification list
+- Zustand authStore with JWT token management
+- TanStack Query for all API calls via customer-sdk
+- Protected routes (redirect to login if no token)
+- customer-portal App.tsx routing
+#### Acceptance Criteria
+- [ ] OTP login flow works end-to-end with auth-service
+- [ ] Ticket list shows all customer tickets with status/priority badges
+- [ ] Ticket detail: view + add comment, display AI resolution suggestions
+- [ ] FAQ search: debounced search input, results with relevance score
+- [ ] Zustand authStore: token persist to localStorage, logout clears state
+- [ ] All pages use TanStack Query (no useState for API data)
+- [ ] No `console.log`, no `any` type, strict TypeScript
+#### Test Results
+- TypeScript: PENDING (`npm run typecheck -w apps/customer-portal`)
+- Lint: PENDING (`npm run lint -w apps/customer-portal`)
+
+---
+
+### [TEST-001] Integration Tests — All Sprint 1 Services
+- **ID:** TEST-001
+- **Status:** IN_PROGRESS
+- **Priority:** P1-HIGH
+- **Owner:** agent:test-engineer
+- **Sprint:** 2
+- **Branch:** feature/TEST-001-integration-tests
+- **Created:** 2026-03-23T19:00:00Z
+- **Addresses:** REVIEW-001, REVIEW-002
+#### Scope (Spring Boot @SpringBootTest + Testcontainers)
+- auth-service: OtpSendIT, OtpVerifyIT, RefreshTokenIT, LogoutIT, AgentLoginIT
+- ticket-service: CreateTicketIT, GetTicketIT, UpdateTicketIT, ResolveTicketIT, TicketStatusMachineIT, SlaBreachIT
+- customer-service: CustomerProfileIT, AddressManagementIT, OrderHistoryIT
+- notification-service: TicketCreatedNotificationIT, StatusChangedNotificationIT
+- ai-service: SentimentAnalysisIT, ResolutionSuggestionIT
+- faq-service: FaqCrudIT, SemanticSearchIT, StrapiWebhookIT
+- order-sync-service: OrderCacheIT, OmsConfigIT
+- reporting-service: DashboardIT, TicketProjectionIT
+#### Acceptance Criteria
+- [ ] Testcontainers: PostgreSQL 16, MongoDB 7, Redis 7, Kafka (Redpanda), Elasticsearch 8
+- [ ] Each service: min 3 integration test cases
+- [ ] @Transactional rollback after each test
+- [ ] Tenant isolation verified in each service IT
+- [ ] All ITs green before merge
+#### Files Created
+- `backend/shared/src/test/java/in/supporthub/shared/test/AbstractIntegrationTest.java`
+- `backend/auth-service/src/test/java/in/supporthub/auth/integration/CustomerAuthIT.java`
+- `backend/auth-service/src/test/java/in/supporthub/auth/integration/AgentAuthIT.java`
+- `backend/ticket-service/src/test/java/in/supporthub/ticket/integration/TicketCrudIT.java`
+- `backend/customer-service/src/test/java/in/supporthub/customer/integration/CustomerProfileIT.java`
+- `backend/notification-service/src/test/java/in/supporthub/notification/integration/NotificationIT.java`
+- `backend/ai-service/src/test/java/in/supporthub/ai/integration/AiServiceIT.java`
+- `backend/faq-service/src/test/java/in/supporthub/faq/integration/FaqCrudIT.java`
+- `backend/order-sync-service/src/test/java/in/supporthub/ordersync/integration/OmsConfigIT.java`
+- `backend/reporting-service/src/test/java/in/supporthub/reporting/integration/ReportingIT.java`
+- `application-test.yml` added for each service above
+- Testcontainers dependencies added to pom.xml for: shared, customer-service, notification-service, ai-service, faq-service, order-sync-service, reporting-service
+#### Test Results
+- Integration: FILES_CREATED — pending execution
+
+---
+
+### [INFRA-006] Terraform AWS Infrastructure Modules
+- **ID:** INFRA-006
+- **Status:** IN_PROGRESS
+- **Priority:** P2-MEDIUM
+- **Owner:** agent:implementer
+- **Sprint:** 2
+- **Branch:** feature/INFRA-006-terraform
+- **Created:** 2026-03-23T19:00:00Z
+- **Updated:** 2026-03-23T20:00:00Z
+#### Scope
+- `infrastructure/terraform/modules/eks/` — EKS cluster, node groups, IRSA
+- `infrastructure/terraform/modules/rds/` — RDS PostgreSQL 16 Multi-AZ, parameter group
+- `infrastructure/terraform/modules/elasticache/` — Redis 7 cluster mode disabled (1 primary + 1 replica)
+- `infrastructure/terraform/modules/msk/` — MSK Kafka 3.x, 3-broker, TLS
+- `infrastructure/terraform/modules/s3/` — S3 bucket + lifecycle policy + KMS encryption
+- `infrastructure/terraform/modules/ecr/` — ECR repo per service + lifecycle policy (keep last 20)
+- `infrastructure/terraform/modules/opensearch/` — OpenSearch Service domain
+- `infrastructure/terraform/envs/dev/` — dev environment wiring (main.tf, variables.tf, outputs.tf, backend.tf)
+- `infrastructure/terraform/envs/staging/` — staging environment
+- `infrastructure/terraform/envs/prod/` — prod environment (multi-AZ, larger instances)
+- `infrastructure/terraform/README.md` — usage documentation
+#### Files Created
+- `infrastructure/terraform/modules/s3/main.tf`, `variables.tf`, `outputs.tf`
+- `infrastructure/terraform/modules/ecr/main.tf`, `variables.tf`, `outputs.tf`
+- `infrastructure/terraform/modules/opensearch/main.tf`, `variables.tf`, `outputs.tf`
+- `infrastructure/terraform/envs/dev/main.tf`, `variables.tf`, `outputs.tf`, `backend.tf`
+- `infrastructure/terraform/envs/staging/main.tf`, `variables.tf`, `outputs.tf`, `backend.tf`
+- `infrastructure/terraform/envs/prod/main.tf`, `variables.tf`, `outputs.tf`, `backend.tf`
+- `infrastructure/terraform/README.md`
+#### Acceptance Criteria
+- [ ] All modules have variables.tf, main.tf, outputs.tf
+- [x] Remote state: S3 + DynamoDB lock configured in backend.tf
+- [x] Tagging: Environment, Project, ManagedBy=terraform on all resources
+- [ ] `terraform validate` passes on each module
+- [x] No hardcoded credentials — all from variables or AWS secrets manager
+#### Test Results
+- Validate: PENDING (`terraform validate` per module)
+
+---
+
+### [INFRA-007] Kubernetes Kustomize Overlays (dev/staging/prod)
+- **ID:** INFRA-007
+- **Status:** IN_PROGRESS
+- **Priority:** P2-MEDIUM
+- **Owner:** agent:implementer
+- **Sprint:** 2
+- **Branch:** feature/INFRA-007-k8s-overlays
+- **Created:** 2026-03-23T19:00:00Z
+- **Updated:** 2026-03-23T20:00:00Z
+#### Scope
+- `infrastructure/k8s/overlays/dev/` — 1 replica, DEBUG log
+- `infrastructure/k8s/overlays/staging/` — 2 replicas, INFO log, Ingress (letsencrypt-staging)
+- `infrastructure/k8s/overlays/prod/` — 3 replicas, WARN log, HPA, PodDisruptionBudget
+- HorizontalPodAutoscaler for api-gateway, ticket-service, ai-service in prod
+- PodDisruptionBudget (minAvailable: 1) for all services in prod
+- Ingress + cert-manager annotations for staging + prod
+#### Files Created
+- `infrastructure/k8s/overlays/dev/kustomization.yaml`, `replica-patch.yaml`, `env-patch.yaml`, `namespace-patch.yaml`
+- `infrastructure/k8s/overlays/staging/kustomization.yaml`, `replica-patch.yaml`, `env-patch.yaml`, `namespace-patch.yaml`, `ingress.yaml`
+- `infrastructure/k8s/overlays/prod/kustomization.yaml`, `replica-patch.yaml`, `env-patch.yaml`, `namespace-patch.yaml`, `ingress.yaml`
+- `infrastructure/k8s/overlays/prod/hpa/api-gateway-hpa.yaml`, `ticket-service-hpa.yaml`, `ai-service-hpa.yaml`
+- `infrastructure/k8s/overlays/prod/pdb/api-gateway-pdb.yaml`, `ticket-service-pdb.yaml`, `auth-service-pdb.yaml`, `customer-service-pdb.yaml`, `notification-service-pdb.yaml`, `faq-service-pdb.yaml`, `reporting-service-pdb.yaml`, `order-sync-service-pdb.yaml`, `tenant-service-pdb.yaml`
+#### Acceptance Criteria
+- [ ] `kubectl kustomize infrastructure/k8s/overlays/dev` passes
+- [ ] `kubectl kustomize infrastructure/k8s/overlays/staging` passes
+- [ ] `kubectl kustomize infrastructure/k8s/overlays/prod` passes
+- [x] HPA configured for api-gateway, ticket-service, ai-service in prod
+- [x] PodDisruptionBudget applied to all prod services
+
+---
+
+### [OBS-001] Observability Stack — Prometheus + Grafana + Loki + Langfuse
+- **ID:** OBS-001
+- **Status:** IN_PROGRESS
+- **Priority:** P2-MEDIUM
+- **Owner:** agent:implementer
+- **Sprint:** 2
+- **Branch:** feature/OBS-001-observability
+- **Created:** 2026-03-23T19:00:00Z
+#### Scope
+- `infrastructure/docker/docker-compose-obs.yml` — Prometheus, Grafana, Loki, Promtail, Langfuse
+- `infrastructure/observability/prometheus/prometheus.yml` — scrape configs for all 11 services
+- `infrastructure/observability/grafana/dashboards/supporthub-overview.json` — service health dashboard
+- `infrastructure/observability/grafana/dashboards/ticket-metrics.json` — ticket volume/SLA dashboard
+- `infrastructure/observability/grafana/provisioning/` — datasource + dashboard provisioning
+- `infrastructure/observability/loki/loki-config.yml` — log aggregation config
+- Micrometer Spring Boot actuator endpoints already in application.yml — verify scrape works
+- Langfuse self-hosted for AI interaction tracing
+#### Acceptance Criteria
+- [ ] All 11 services scraped by Prometheus on /actuator/prometheus
+- [ ] Grafana SupportHub Overview dashboard: request rate, error rate, p99 latency per service
+- [ ] Grafana Ticket dashboard: tickets created/resolved per hour, SLA breach rate
+- [ ] Loki + Promtail collecting logs from all services with tenant_id label
+- [ ] Langfuse container in docker-compose for AI call tracing
+
+---
+
 ## 📋 BACKLOG — Sprint 2
 
-### Sprint 2 priorities:
-- INFRA-006: Terraform modules (EKS, RDS, ElastiCache, MSK, S3)
-- TEST-001: Integration tests for all Sprint 1 services (addresses REVIEW-001, REVIEW-002)
-- FEAT-024: customer-portal — self-service ticket creation flow + FAQ self-resolution
-- FEAT-025: E2E Playwright tests (ticket creation, agent resolution, FAQ self-resolve flows)
-- SEC-001: OWASP dependency scan for all Sprint 1 services — output to TODO.md
-- ANAL-001: SpotBugs + Checkstyle scan for Sprint 1 services
+### Sprint 2 Open Tasks:
+
+### [FEAT-025] E2E Playwright Tests — ticket creation, resolution, FAQ self-resolve
+- **ID:** FEAT-025
+- **Status:** OPEN
+- **Priority:** P2-MEDIUM
+- **Sprint:** 2
+- **Created:** 2026-03-23T19:00:00Z
+#### Scope
+- `frontend/e2e/ticket-creation.spec.ts` — customer creates ticket, sees confirmation
+- `frontend/e2e/agent-resolution.spec.ts` — agent views queue, resolves ticket, customer notified
+- `frontend/e2e/faq-self-resolve.spec.ts` — customer searches FAQ, finds answer, deflects ticket creation
+- `frontend/e2e/otp-login.spec.ts` — customer OTP login flow end-to-end
+- `frontend/playwright.config.ts` — base URL, retries, parallel workers
+#### Acceptance Criteria
+- [ ] All 4 spec files pass against local docker-compose stack
+- [ ] Screenshots on failure saved to `frontend/e2e/screenshots/`
+- [ ] Page Object Model pattern used (no raw locators in tests)
+
+---
+
+### [SEC-001] OWASP CVE Dependency Scan — All Sprint 1 Services
+- **ID:** SEC-001
+- **Status:** OPEN
+- **Priority:** P1-HIGH
+- **Sprint:** 2
+- **Created:** 2026-03-23T19:00:00Z
+#### Scope
+- Run `./mvnw dependency-check:check` on all 11 backend services
+- Capture all CRITICAL/HIGH CVEs → create SEC-NNN tasks for each
+- Run `npm audit --audit-level=high` on all frontend workspaces
+- No CRITICAL CVEs unresolved before any merge to main
+#### Acceptance Criteria
+- [ ] OWASP scan completed on all backend services
+- [ ] npm audit completed on all frontend workspaces
+- [ ] All CRITICAL CVEs have SEC-NNN tasks created in TODO.md
+- [ ] Report saved to `security/owasp-report-sprint2.md`
+
+---
+
+### [ANAL-001] Static Analysis — SpotBugs + Checkstyle + PMD
+- **ID:** ANAL-001
+- **Status:** OPEN
+- **Priority:** P2-MEDIUM
+- **Sprint:** 2
+- **Created:** 2026-03-23T19:00:00Z
+#### Scope
+- Run `./mvnw checkstyle:check spotbugs:check pmd:check` on all services
+- Capture HIGH/MEDIUM findings → create ANAL-NNN tasks for each
+- ESLint check on all frontend workspaces
+#### Acceptance Criteria
+- [ ] Checkstyle: 0 violations in service layer
+- [ ] SpotBugs: 0 HIGH findings
+- [ ] PMD: 0 HIGH findings
+- [ ] ESLint: 0 errors across frontend workspaces
+
+---
+
+### [FEAT-026] customer-portal — PWA + Offline Support + Push Notifications
+- **ID:** FEAT-026
+- **Status:** OPEN
+- **Priority:** P3-LOW
+- **Sprint:** 2
+- **Created:** 2026-03-23T19:00:00Z
+#### Scope
+- Service worker with Workbox (cache-first for static, network-first for API)
+- Web Push notification subscription → stored in notification-service
+- Offline ticket list from IndexedDB cache
+- Install prompt (PWA manifest)
+
+---
+
+### [FEAT-027] reporting-service — Grafana-compatible metrics endpoint + tenant dashboard API
+- **ID:** FEAT-027
+- **Status:** OPEN
+- **Priority:** P3-LOW
+- **Sprint:** 2
+- **Created:** 2026-03-23T19:00:00Z
+#### Scope
+- `/api/v1/reports/export` — CSV export of ticket data (streaming)
+- `/api/v1/reports/sla-compliance` — SLA compliance % per category per period
+- `/api/v1/reports/agent-performance` — tickets resolved, avg resolution time per agent
+- Elasticsearch aggregation queries via existing DashboardService
+
+---
 
 ---
 

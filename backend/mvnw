@@ -225,6 +225,20 @@ maybe_download_wrapper_jar
 maybe_download_maven
 set_java_home
 
+# Locate project base dir (directory that contains .mvn/) by traversing upward.
+if [ -z "${MAVEN_PROJECTBASEDIR-}" ]; then
+  MAVEN_PROJECTBASEDIR="$(cd "$(dirname -- "$0")" && pwd)"
+  wdir="${MAVEN_PROJECTBASEDIR}"
+  while [ "${wdir}" != '/' ]; do
+    if [ -d "${wdir}/.mvn" ]; then
+      MAVEN_PROJECTBASEDIR="${wdir}"
+      break
+    fi
+    wdir="$(dirname -- "${wdir}")"
+  done
+fi
+export MAVEN_PROJECTBASEDIR
+
 exec "${JAVA_HOME}/bin/java" \
   ${JVMFLAGS-} \
   "-classpath" "${WRAPPER_JAR}" \

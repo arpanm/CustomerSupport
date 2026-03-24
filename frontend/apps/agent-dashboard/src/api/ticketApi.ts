@@ -1,5 +1,5 @@
-const BASE_URL = import.meta.env.VITE_API_BASE_URL as string;
-const TENANT_ID = import.meta.env.VITE_TENANT_ID as string;
+const BASE_URL = import.meta.env.VITE_API_BASE_URL;
+const TENANT_ID = import.meta.env.VITE_TENANT_ID;
 
 export interface TicketSummary {
   id: string;
@@ -70,11 +70,11 @@ export async function fetchTickets(
   },
 ): Promise<TicketsPage> {
   const qs = new URLSearchParams();
-  if (params.status) qs.set('status', params.status);
-  if (params.priority) qs.set('priority', params.priority);
-  if (params.assignedToMe && params.agentId) qs.set('assignedAgentId', params.agentId);
-  if (params.search) qs.set('search', params.search);
-  if (params.cursor) qs.set('cursor', params.cursor);
+  if (params.status !== undefined) qs.set('status', params.status);
+  if (params.priority !== undefined) qs.set('priority', params.priority);
+  if (params.assignedToMe === true && params.agentId !== undefined) qs.set('assignedAgentId', params.agentId);
+  if (params.search !== undefined) qs.set('search', params.search);
+  if (params.cursor !== undefined) qs.set('cursor', params.cursor);
   qs.set('limit', String(params.limit ?? 25));
   qs.set('sort', 'createdAt');
   qs.set('direction', 'desc');

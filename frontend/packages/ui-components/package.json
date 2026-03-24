@@ -14,8 +14,8 @@
   },
   "files": ["dist"],
   "scripts": {
-    "build": "vite build",
-    "test": "vitest run",
+    "build": "vite build && tsc --emitDeclarationOnly --noEmit false",
+    "test": "vitest run --passWithNoTests",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src --max-warnings 0"

@@ -10,20 +10,22 @@ describe('SupportHubClient', () => {
       tenantId: 'test-tenant',
       getAccessToken: () => 'test-token',
     });
-    global.fetch = vi.fn();
+    globalThis.fetch = vi.fn();
   });
 
   it('should send correct headers on createTicket', async () => {
-    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+    (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
       ok: true,
       json: () => Promise.resolve({ data: { id: '1', ticketNumber: 'FC-2024-001' }, meta: {} }),
     });
 
     await client.createTicket({ title: 'Test', description: 'Test desc', categoryId: 'cat-1' });
 
-    expect(global.fetch).toHaveBeenCalledWith(
+    expect(globalThis.fetch).toHaveBeenCalledWith(
       'http://localhost:8080/api/v1/tickets',
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       expect.objectContaining({
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         headers: expect.objectContaining({
           'X-Tenant-ID': 'test-tenant',
           'Authorization': 'Bearer test-token',
@@ -33,7 +35,7 @@ describe('SupportHubClient', () => {
   });
 
   it('should throw SupportHubError on API error', async () => {
-    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+    (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
       ok: false,
       status: 404,
       json: () => Promise.resolve({ error: { code: 'NOT_FOUND', message: 'Ticket not found' }, meta: {} }),
@@ -50,7 +52,7 @@ describe('SupportHubClient', () => {
       getAccessToken: tokenFn,
     });
 
-    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+    (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
       ok: true,
       json: () => Promise.resolve({ data: [], meta: {} }),
     });

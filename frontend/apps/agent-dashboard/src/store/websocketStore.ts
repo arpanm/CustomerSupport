@@ -54,13 +54,13 @@ function getReconnectDelay(): number {
   return BASE_RECONNECT_MS * Math.pow(2, Math.min(reconnectAttempt, MAX_RECONNECT_ATTEMPTS - 1));
 }
 
-function scheduleReconnect(store: ReturnType<typeof create<WebSocketStore>>) {
+function scheduleReconnect(store: { getState: () => WebSocketStore }) {
   if (reconnectTimeout !== null) return;
   const delay = getReconnectDelay();
   reconnectAttempt += 1;
   reconnectTimeout = setTimeout(() => {
     reconnectTimeout = null;
-    (store as unknown as { getState: () => WebSocketStore }).getState().connect(activeTenantId, activeToken);
+    store.getState().connect(activeTenantId, activeToken);
   }, delay);
 }
 
@@ -164,7 +164,7 @@ export const useWebSocketStore = create<WebSocketStore>()((set) => {
       ws.onclose = () => {
         ws = null;
         set({ status: 'disconnected' });
-        scheduleReconnect(useWebSocketStore as unknown as ReturnType<typeof create<WebSocketStore>>);
+        scheduleReconnect(useWebSocketStore);
       };
     },
 

@@ -22,8 +22,8 @@ interface OtpVerifyResponse {
   tenantId: string;
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL as string;
-const TENANT_ID = import.meta.env.VITE_TENANT_ID as string;
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+const TENANT_ID = import.meta.env.VITE_TENANT_ID;
 
 export function LoginPage() {
   const navigate = useNavigate();
@@ -50,11 +50,11 @@ export function LoginPage() {
       });
 
       if (!response.ok) {
-        const errorBody: { error?: { message?: string } } = await response.json().catch(() => ({}));
+        const errorBody = await (response.json() as Promise<{ error?: { message?: string } }>).catch((): { error?: { message?: string } } => ({}));
         throw new Error(errorBody.error?.message ?? `Request failed with status ${response.status}`);
       }
 
-      const body: OtpSendResponse = await response.json();
+      const body = await (response.json() as Promise<OtpSendResponse>);
       setPhone(data.phone);
       setSessionId(body.sessionId);
       setStep('otp');
@@ -76,13 +76,13 @@ export function LoginPage() {
       });
 
       if (!response.ok) {
-        const errorBody: { error?: { message?: string } } = await response.json().catch(() => ({}));
+        const errorBody = await (response.json() as Promise<{ error?: { message?: string } }>).catch((): { error?: { message?: string } } => ({}));
         throw new Error(errorBody.error?.message ?? `Request failed with status ${response.status}`);
       }
 
-      const body: OtpVerifyResponse = await response.json();
+      const body = await (response.json() as Promise<OtpVerifyResponse>);
       setAuth(body.token, body.customerId, body.tenantId);
-      await navigate('/tickets');
+      navigate('/tickets');
     } catch (err) {
       setVerifyError(err instanceof Error ? err.message : 'Invalid OTP. Please try again.');
     }

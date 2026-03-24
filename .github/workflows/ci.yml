@@ -49,7 +49,7 @@ jobs:
           distribution: temurin
           cache: maven
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
       - name: Run integration tests (Testcontainers)
         working-directory: backend
         run: ./mvnw verify -Dfailsafe.failIfNoSpecifiedTests=false
@@ -155,7 +155,7 @@ jobs:
         service: [api-gateway, auth-service, ticket-service, customer-service, ai-service, notification-service, faq-service, reporting-service, tenant-service, order-sync-service, mcp-server]
     steps:
       - uses: actions/checkout@v4
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v4
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:

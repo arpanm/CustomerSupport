@@ -300,7 +300,7 @@ function AgentTab({ token, from, to }: AgentTabProps) {
   };
 
   const sorted = [...(agentData ?? [])].sort((a, b) => {
-    const diff = (a[sortField] as number) - (b[sortField] as number);
+    const diff = a[sortField] - b[sortField];
     return sortDir === 'asc' ? diff : -diff;
   });
 
@@ -395,7 +395,7 @@ function ExportTab({ token }: ExportTabProps) {
       const res = await fetch(url, {
         headers: {
           Authorization: `Bearer ${token}`,
-          'X-Tenant-ID': import.meta.env.VITE_TENANT_ID as string,
+          'X-Tenant-ID': import.meta.env.VITE_TENANT_ID,
         },
       });
       if (!res.ok) throw new Error(`Export failed: ${res.status}`);

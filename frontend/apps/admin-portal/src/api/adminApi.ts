@@ -1,5 +1,5 @@
-const BASE_URL = import.meta.env.VITE_API_BASE_URL as string;
-const TENANT_ID = import.meta.env.VITE_TENANT_ID as string;
+const BASE_URL = import.meta.env.VITE_API_BASE_URL;
+const TENANT_ID = import.meta.env.VITE_TENANT_ID;
 
 function authHeaders(token: string): Record<string, string> {
   return {

@@ -110,6 +110,20 @@ fi
 if ! $SKIP_BUILD && ! $INFRA_ONLY; then
   info "Building backend (all 11 services) — this takes ~3 min on first run..."
   cd "$BACKEND_DIR"
+
+  # mvnw has 'set -euf' and ends with: exec "${JAVA_HOME}/bin/java" ...
+  # set_java_home() only sets JAVACMD, not JAVA_HOME, so the exec fails with
+  # "JAVA_HOME: unbound variable" when JAVA_HOME isn't already exported.
+  # Auto-detect and export it here so the wrapper always has it.
+  if [[ -z "${JAVA_HOME:-}" ]]; then
+    _java_real="$(readlink -f "$(command -v java)" 2>/dev/null || true)"
+    if [[ -n "$_java_real" ]]; then
+      JAVA_HOME="$(dirname "$(dirname "$_java_real")")"
+      export JAVA_HOME
+      info "Auto-detected JAVA_HOME=$JAVA_HOME"
+    fi
+  fi
+
   ./mvnw clean package -DskipTests --no-transfer-progress -q \
     || die "Maven build failed. Run './mvnw clean package -DskipTests' in /backend for details."
   cd "$SCRIPT_DIR"
@@ -136,6 +150,33 @@ if ! $SKIP_BUILD && ! $INFRA_ONLY; then
   cd "$SCRIPT_DIR"
   success "Frontend build complete"
 fi
+
+# ── Pre-flight port check ────────────────────────────────────
+# Containers from previous runs under a different Compose project name
+# (e.g. "docker" when compose was invoked directly from infrastructure/docker/)
+# are NOT treated as orphans by --remove-orphans and will block port binds.
+# Detect and stop any non-supporthub Docker container holding a required port.
+_free_port() {
+  local port="$1" label="$2"
+  local culprit
+  culprit="$(docker ps --format '{{.Names}}\t{{.Ports}}' \
+    | awk -v p=":${port}->" '$0 ~ p {print $1}' \
+    | grep -v '^supporthub-' || true)"
+  if [[ -n "$culprit" ]]; then
+    warn "Port ${port} (${label}) is held by container '${culprit}' — stopping it..."
+    docker stop "$culprit" >/dev/null 2>&1 || true
+  fi
+}
+_free_port "${REDIS_PORT:-6379}"           "Redis"
+_free_port "${POSTGRES_PORT:-5432}"        "PostgreSQL"
+_free_port "${MONGO_PORT:-27017}"          "MongoDB"
+_free_port "2181"                          "Zookeeper"
+_free_port "${KAFKA_PORT:-9092}"           "Kafka"
+_free_port "${ELASTICSEARCH_PORT:-9200}"   "Elasticsearch"
+_free_port "${MINIO_API_PORT:-9000}"       "MinIO API"
+_free_port "${MINIO_CONSOLE_PORT:-9001}"   "MinIO Console"
+_free_port "${STRAPI_PORT:-1337}"          "Strapi"
+_free_port "${STRAPI_POSTGRES_PORT:-5433}" "Strapi PostgreSQL"
 
 # ── Start infrastructure ────────────────────────────────────
 info "Starting infrastructure services (Postgres · Mongo · Redis · Kafka · ES · MinIO · Strapi)..."

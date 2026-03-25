@@ -78,6 +78,12 @@
         <!-- JaCoCo coverage thresholds -->
         <jacoco.service.coverage.minimum>0.80</jacoco.service.coverage.minimum>
         <jacoco.overall.coverage.minimum>0.70</jacoco.overall.coverage.minimum>
+
+        <!-- Default empty argLine values so Surefire/Failsafe don't receive
+             the literal "${surefire.argLine}" if JaCoCo prepare-agent hasn't
+             run yet (e.g. when running a single plugin goal directly). -->
+        <surefire.argLine></surefire.argLine>
+        <failsafe.argLine></failsafe.argLine>
     </properties>
 
     <!-- ================================================================

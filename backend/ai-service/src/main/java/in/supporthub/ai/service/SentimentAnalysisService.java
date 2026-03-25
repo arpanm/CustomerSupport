@@ -92,7 +92,7 @@ public class SentimentAnalysisService {
         int outputTokens = 0;
         if (chatResponse.getMetadata() != null && chatResponse.getMetadata().getUsage() != null) {
             inputTokens = (int) chatResponse.getMetadata().getUsage().getPromptTokens();
-            outputTokens = (int) chatResponse.getMetadata().getUsage().getGenerationTokens();
+            outputTokens = (int) chatResponse.getMetadata().getUsage().getCompletionTokens();
         }
 
         saveInteraction(tenantId, ticketId, cleanText, rawResponse,

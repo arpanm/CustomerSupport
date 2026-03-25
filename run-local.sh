@@ -111,37 +111,38 @@ if ! $SKIP_BUILD && ! $INFRA_ONLY; then
   info "Building backend (all 11 services) — this takes ~3 min on first run..."
   cd "$BACKEND_DIR"
 
-  # mvnw has 'set -euf' and ends with: exec "${JAVA_HOME}/bin/java" ...
-  # set_java_home() only sets JAVACMD, not JAVA_HOME, so the exec fails with
-  # "JAVA_HOME: unbound variable" when JAVA_HOME isn't already exported.
-  # Auto-detect and export it here so the wrapper always has it.
-  # On Debian/Ubuntu the alternatives chain goes:
-  #   /usr/bin/java -> /etc/alternatives/java -> /usr/lib/jvm/java-21-.../bin/java
-  # We need the JDK root (two dirname levels above the real binary).
+  # Resolve JAVA_HOME if not already set.
+  # 'java -XshowSettings:property' is the most portable method — it works on
+  # Linux (openjdk, alternatives), macOS (stub + /usr/libexec/java_home),
+  # sdkman, jenv, and Homebrew installs without any symlink gymnastics.
   if [[ -z "${JAVA_HOME:-}" ]]; then
-    _java_bin="$(command -v java 2>/dev/null || true)"
-    if [[ -n "$_java_bin" ]]; then
-      # Follow the full symlink chain (handles update-alternatives on Linux)
-      _java_real="$_java_bin"
-      while [[ -L "$_java_real" ]]; do
-        _link_target="$(readlink "$_java_real")"
-        # Relative symlinks need to be resolved against their directory
-        if [[ "$_link_target" != /* ]]; then
-          _java_real="$(dirname "$_java_real")/$_link_target"
-        else
-          _java_real="$_link_target"
-        fi
-      done
-      JAVA_HOME="$(dirname "$(dirname "$_java_real")")"
-      export JAVA_HOME
-      info "Auto-detected JAVA_HOME=$JAVA_HOME"
+    JAVA_HOME="$(java -XshowSettings:property -version 2>&1 \
+      | awk -F' = ' '/java\.home/ {print $2; exit}')"
+    # java.home may point to the jre/ subdirectory on some JDKs — go one level up
+    if [[ -n "${JAVA_HOME:-}" ]] && [[ ! -x "${JAVA_HOME}/bin/javac" ]] \
+        && [[ -x "${JAVA_HOME}/../bin/javac" ]]; then
+      JAVA_HOME="$(cd "${JAVA_HOME}/.." && pwd)"
     fi
+    [[ -n "${JAVA_HOME:-}" ]] && export JAVA_HOME \
+      && info "Auto-detected JAVA_HOME=$JAVA_HOME"
   fi
 
-  # Drop -q so Maven output is visible (helps diagnose hangs on first run
-  # when it downloads the Maven distribution or dependencies).
-  ./mvnw clean package -DskipTests --no-transfer-progress \
-    || die "Maven build failed. Run './mvnw clean package -DskipTests' in /backend for details."
+  # Prefer the system 'mvn' binary when available — it avoids the Maven
+  # wrapper distribution download (which is silent with --no-transfer-progress
+  # and looks like a hang on first run) and works around a bug in the mvnw
+  # script where 'local distributionUrl' in parse_maven_config() is not
+  # visible in maybe_download_maven(), causing "parameter not set" on
+  # systems where the wrapper distribution is not yet cached.
+  MVN_CMD="./mvnw"
+  if command -v mvn &>/dev/null; then
+    MVN_CMD="mvn"
+    info "Using system Maven: $(mvn --version 2>&1 | head -1)"
+  else
+    info "No system mvn found — using Maven wrapper (may download ~10 MB on first run)"
+  fi
+
+  $MVN_CMD clean package -DskipTests --no-transfer-progress \
+    || die "Maven build failed. Run 'mvn clean package -DskipTests' in /backend for details."
   cd "$SCRIPT_DIR"
   success "Backend build complete"
 fi

@@ -61,7 +61,8 @@ public class SendGridEmailService {
                                     .doOnNext(errorBody -> log.error(
                                             "SendGrid API error status={} referenceId={}",
                                             response.statusCode().value(), referenceId))
-                                    .then())
+                                    .thenReturn(new RuntimeException(
+                                            "SendGrid API error status=" + response.statusCode().value())))
                     .toBodilessEntity()
                     .block();
 

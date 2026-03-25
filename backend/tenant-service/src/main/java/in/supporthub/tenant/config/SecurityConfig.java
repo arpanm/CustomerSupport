@@ -18,15 +18,15 @@ import org.springframework.security.web.SecurityFilterChain;
  *
  * <p>Public routes (no authentication required):
  * <ul>
- *   <li>{@code GET /api/v1/tenants/**} — slug-based tenant resolution used by the gateway</li>
- *   <li>{@code /actuator/health}, {@code /actuator/info} — Kubernetes liveness/readiness probes</li>
+ *   <li>{@code GET /api/v1/tenants/**} -- slug-based tenant resolution used by the gateway</li>
+ *   <li>{@code /actuator/health}, {@code /actuator/info} -- Kubernetes liveness/readiness probes</li>
  * </ul>
  *
  * <p>Admin routes:
  * <ul>
- *   <li>{@code POST /api/v1/admin/tenants} — SUPER_ADMIN only</li>
- *   <li>{@code PATCH /api/v1/admin/tenants/*/status} — SUPER_ADMIN only</li>
- *   <li>{@code GET, PUT /api/v1/admin/tenants/**} — ADMIN or SUPER_ADMIN</li>
+ *   <li>{@code POST /api/v1/admin/tenants} -- SUPER_ADMIN only</li>
+ *   <li>{@code PATCH /api/v1/admin/tenants/{id}/status} -- SUPER_ADMIN only</li>
+ *   <li>{@code GET, PUT /api/v1/admin/tenants/**} -- ADMIN or SUPER_ADMIN</li>
  * </ul>
  */
 @Configuration

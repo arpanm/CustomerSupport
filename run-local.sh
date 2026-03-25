@@ -106,6 +106,83 @@ if [[ -z "${ANTHROPIC_API_KEY:-}" ]] || [[ "$ANTHROPIC_API_KEY" == *"REPLACE"* ]
   warn "AI sentiment + resolution features will be disabled until you add it."
 fi
 
+# ── Port helpers ─────────────────────────────────────────────
+# Safely update KEY=VALUE in the .env file (handles URLs, special chars)
+update_env() {
+  local key="$1" val="$2" tmp="${ENV_FILE}.tmp"
+  awk -v k="$key" -v v="$val" '
+    substr($0,1,length(k)+1)==k"=" { print k"="v; next } { print }
+  ' "$ENV_FILE" > "$tmp" && mv "$tmp" "$ENV_FILE"
+}
+
+# Echo the first port >= $1 that no process or Docker container is listening on
+find_free_port() {
+  local port=$1
+  while nc -z -w1 localhost "$port" 2>/dev/null || \
+        docker ps --format '{{.Ports}}' 2>/dev/null | grep -q ":${port}->"; do
+    port=$((port + 1))
+  done
+  echo "$port"
+}
+
+# claim_port VAR DEFAULT LABEL
+# 1. Stops any alien (non-supporthub) Docker container holding the port.
+# 2. If still busy, finds the next free port, writes it to .env, and exports it.
+claim_port() {
+  local var="$1" default="$2" label="$3"
+  local port="${!var:-$default}"
+
+  # Stop a foreign Docker container holding the port, if any
+  local culprit
+  culprit="$(docker ps --format '{{.Names}}\t{{.Ports}}' 2>/dev/null \
+    | awk -v p=":${port}->" '$0 ~ p {print $1}' \
+    | grep -v '^supporthub-' | head -1 || true)"
+  if [[ -n "$culprit" ]]; then
+    warn "Port ${port} (${label}) held by container '${culprit}' — stopping it"
+    docker stop "$culprit" >/dev/null 2>&1 || true
+    sleep 0.5
+  fi
+
+  # If still occupied (host process or stubborn container), find a free port
+  if nc -z -w1 localhost "$port" 2>/dev/null || \
+     docker ps --format '{{.Ports}}' 2>/dev/null | grep -q ":${port}->"; then
+    local new_port
+    new_port="$(find_free_port $((port + 1)))"
+    warn "Port ${port} (${label}) still busy → reassigned to ${new_port}"
+    update_env "$var" "$new_port"
+    port="$new_port"
+  fi
+
+  export "${var}=${port}"
+}
+
+# ── Port claiming ────────────────────────────────────────────
+info "Checking and claiming ports..."
+claim_port "POSTGRES_PORT"        "${POSTGRES_PORT:-5432}"   "PostgreSQL"
+claim_port "MONGO_PORT"           "${MONGO_PORT:-27017}"     "MongoDB"
+claim_port "REDIS_PORT"           "${REDIS_PORT:-6379}"      "Redis"
+claim_port "ZOOKEEPER_PORT"       "${ZOOKEEPER_PORT:-2181}"  "Zookeeper"
+claim_port "KAFKA_PORT"           "${KAFKA_PORT:-9092}"      "Kafka"
+claim_port "ELASTICSEARCH_PORT"   "${ELASTICSEARCH_PORT:-9200}" "Elasticsearch"
+claim_port "MINIO_API_PORT"       "${MINIO_API_PORT:-9000}"  "MinIO API"
+claim_port "MINIO_CONSOLE_PORT"   "${MINIO_CONSOLE_PORT:-9001}" "MinIO Console"
+claim_port "STRAPI_POSTGRES_PORT" "${STRAPI_POSTGRES_PORT:-5433}" "Strapi DB"
+claim_port "STRAPI_PORT"          "${STRAPI_PORT:-1337}"     "Strapi"
+
+# Update any URL variables that embed a host port, then reload .env
+update_env "DB_URL" \
+  "jdbc:postgresql://localhost:${POSTGRES_PORT}/${POSTGRES_DB:-supporthub}"
+update_env "DB_TEST_URL" \
+  "jdbc:postgresql://localhost:${POSTGRES_PORT}/${POSTGRES_DB:-supporthub}_test"
+update_env "MONGODB_URI" \
+  "mongodb://${MONGO_USER:-supporthub}:${MONGO_PASSWORD:-supporthub_dev_password}@localhost:${MONGO_PORT}/${MONGO_DB:-supporthub}?authSource=admin"
+update_env "KAFKA_SERVERS"     "localhost:${KAFKA_PORT}"
+update_env "ELASTICSEARCH_URI" "http://localhost:${ELASTICSEARCH_PORT}"
+update_env "AWS_S3_ENDPOINT"   "http://localhost:${MINIO_API_PORT}"
+# Reload so Docker Compose and the rest of this script see the updated values
+set -o allexport; source "$ENV_FILE"; set +o allexport
+success "Ports OK (any conflicts were resolved above)"
+
 # ── Build backend ───────────────────────────────────────────
 if ! $SKIP_BUILD && ! $INFRA_ONLY; then
   info "Building backend (all 11 services) — this takes ~3 min on first run..."
@@ -127,22 +204,42 @@ if ! $SKIP_BUILD && ! $INFRA_ONLY; then
       && info "Auto-detected JAVA_HOME=$JAVA_HOME"
   fi
 
-  # Prefer the system 'mvn' binary when available — it avoids the Maven
-  # wrapper distribution download (which is silent with --no-transfer-progress
-  # and looks like a hang on first run) and works around a bug in the mvnw
-  # script where 'local distributionUrl' in parse_maven_config() is not
-  # visible in maybe_download_maven(), causing "parameter not set" on
-  # systems where the wrapper distribution is not yet cached.
+  # Prefer system 'mvn' over './mvnw' — avoids the wrapper's silent
+  # ~10 MB distribution download and a sh-compatibility bug in mvnw.
   MVN_CMD="./mvnw"
   if command -v mvn &>/dev/null; then
     MVN_CMD="mvn"
-    info "Using system Maven: $(mvn --version 2>&1 | head -1)"
+    MVN_VER="$(mvn --version 2>&1 | head -1 | sed 's/Apache Maven //')"
+    info "Using system Maven ${MVN_VER}"
   else
-    info "No system mvn found — using Maven wrapper (may download ~10 MB on first run)"
+    info "No system mvn — using wrapper (first run downloads ~10 MB, then starts)"
   fi
 
-  $MVN_CMD clean package -DskipTests --no-transfer-progress \
-    || die "Maven build failed. Run 'mvn clean package -DskipTests' in /backend for details."
+  info "Maven output is shown below. Downloads can be silent for several minutes on"
+  info "a cold local repository — the heartbeat below confirms the build is alive."
+
+  # Background heartbeat: prints elapsed time every 30 s so the terminal
+  # doesn't look frozen while Maven downloads dependencies.
+  _mvn_heartbeat() {
+    local t=0
+    while true; do
+      sleep 30; t=$((t+30))
+      printf '\033[36m\033[1m[INFO]\033[0m  ... Maven still running — %ds elapsed\n' "$t"
+    done
+  }
+  _mvn_heartbeat &
+  _MVN_HB_PID=$!
+
+  # Run Maven; capture exit code without letting set -e kill us before cleanup
+  set +e
+  $MVN_CMD clean package -DskipTests --no-transfer-progress
+  _MVN_EXIT=$?
+  set -e
+
+  kill "$_MVN_HB_PID" 2>/dev/null; wait "$_MVN_HB_PID" 2>/dev/null || true
+
+  [[ $_MVN_EXIT -eq 0 ]] \
+    || die "Maven build failed (exit ${_MVN_EXIT}). Check the output above, or run 'mvn clean package -DskipTests' in /backend directly."
   cd "$SCRIPT_DIR"
   success "Backend build complete"
 fi
@@ -167,33 +264,6 @@ if ! $SKIP_BUILD && ! $INFRA_ONLY; then
   cd "$SCRIPT_DIR"
   success "Frontend build complete"
 fi
-
-# ── Pre-flight port check ────────────────────────────────────
-# Containers from previous runs under a different Compose project name
-# (e.g. "docker" when compose was invoked directly from infrastructure/docker/)
-# are NOT treated as orphans by --remove-orphans and will block port binds.
-# Detect and stop any non-supporthub Docker container holding a required port.
-_free_port() {
-  local port="$1" label="$2"
-  local culprit
-  culprit="$(docker ps --format '{{.Names}}\t{{.Ports}}' \
-    | awk -v p=":${port}->" '$0 ~ p {print $1}' \
-    | grep -v '^supporthub-' || true)"
-  if [[ -n "$culprit" ]]; then
-    warn "Port ${port} (${label}) is held by container '${culprit}' — stopping it..."
-    docker stop "$culprit" >/dev/null 2>&1 || true
-  fi
-}
-_free_port "${REDIS_PORT:-6379}"           "Redis"
-_free_port "${POSTGRES_PORT:-5432}"        "PostgreSQL"
-_free_port "${MONGO_PORT:-27017}"          "MongoDB"
-_free_port "2181"                          "Zookeeper"
-_free_port "${KAFKA_PORT:-9092}"           "Kafka"
-_free_port "${ELASTICSEARCH_PORT:-9200}"   "Elasticsearch"
-_free_port "${MINIO_API_PORT:-9000}"       "MinIO API"
-_free_port "${MINIO_CONSOLE_PORT:-9001}"   "MinIO Console"
-_free_port "${STRAPI_PORT:-1337}"          "Strapi"
-_free_port "${STRAPI_POSTGRES_PORT:-5433}" "Strapi PostgreSQL"
 
 # ── Start infrastructure ────────────────────────────────────
 info "Starting infrastructure services (Postgres · Mongo · Redis · Kafka · ES · MinIO · Strapi)..."
@@ -245,15 +315,16 @@ success "All infrastructure services are up"
 
 if $INFRA_ONLY; then
   echo ""
-  info "Infrastructure access points:"
-  echo "  PostgreSQL   → localhost:${POSTGRES_PORT:-5432}"
-  echo "  MongoDB      → localhost:${MONGO_PORT:-27017}"
-  echo "  Redis        → localhost:${REDIS_PORT:-6379}"
-  echo "  Kafka        → localhost:${KAFKA_PORT:-9092}"
-  echo "  Elasticsearch→ http://localhost:${ELASTICSEARCH_PORT:-9200}"
-  echo "  MinIO API    → http://localhost:${MINIO_API_PORT:-9000}"
-  echo "  MinIO Console→ http://localhost:${MINIO_CONSOLE_PORT:-9001}"
-  echo "  Strapi CMS   → http://localhost:${STRAPI_PORT:-1337}"
+  info "Infrastructure access points (actual ports — may differ if defaults were busy):"
+  printf "  PostgreSQL    → localhost:%s\n"             "${POSTGRES_PORT:-5432}"
+  printf "  MongoDB       → localhost:%s\n"             "${MONGO_PORT:-27017}"
+  printf "  Redis         → localhost:%s\n"             "${REDIS_PORT:-6379}"
+  printf "  Zookeeper     → localhost:%s\n"             "${ZOOKEEPER_PORT:-2181}"
+  printf "  Kafka         → localhost:%s\n"             "${KAFKA_PORT:-9092}"
+  printf "  Elasticsearch → http://localhost:%s\n"      "${ELASTICSEARCH_PORT:-9200}"
+  printf "  MinIO API     → http://localhost:%s\n"      "${MINIO_API_PORT:-9000}"
+  printf "  MinIO Console → http://localhost:%s\n"      "${MINIO_CONSOLE_PORT:-9001}"
+  printf "  Strapi CMS    → http://localhost:%s/admin\n" "${STRAPI_PORT:-1337}"
   echo ""
   exit 0
 fi
@@ -332,20 +403,29 @@ echo "  ║             SupportHub is running locally             ║"
 echo "  ╚═══════════════════════════════════════════════════════╝"
 echo -e "${RESET}"
 echo -e "  ${BOLD}Frontend Apps${RESET}"
-echo "  ┌─────────────────────────────────────────────────────┐"
-echo "  │  Customer Portal   →  http://localhost:3000         │"
-echo "  │  Agent Dashboard   →  http://localhost:3001         │"
-echo "  │  Admin Portal      →  http://localhost:3002         │"
-echo "  └─────────────────────────────────────────────────────┘"
+echo "  ┌──────────────────────────────────────────────────────────┐"
+echo "  │  Customer Portal   →  http://localhost:3000              │"
+echo "  │  Agent Dashboard   →  http://localhost:3001              │"
+echo "  │  Admin Portal      →  http://localhost:3002              │"
+echo "  └──────────────────────────────────────────────────────────┘"
 echo ""
-echo -e "  ${BOLD}API & Tooling${RESET}"
-echo "  ┌─────────────────────────────────────────────────────┐"
-echo "  │  API Gateway       →  http://localhost:8080         │"
-echo "  │  Swagger UI        →  http://localhost:8081/swagger-ui.html  │"
-echo "  │  MinIO Console     →  http://localhost:9001         │"
-echo "  │  Strapi CMS        →  http://localhost:1337/admin   │"
-echo "  │  Elasticsearch     →  http://localhost:9200         │"
-echo "  └─────────────────────────────────────────────────────┘"
+echo -e "  ${BOLD}API & Services${RESET}"
+echo "  ┌──────────────────────────────────────────────────────────┐"
+printf "  │  API Gateway       →  http://localhost:8080              │\n"
+printf "  │  Swagger UI        →  http://localhost:8081/swagger-ui.html  │\n"
+printf "  │  MinIO Console     →  http://localhost:%-5s               │\n" "${MINIO_CONSOLE_PORT:-9001}"
+printf "  │  Strapi CMS        →  http://localhost:%-5s/admin         │\n" "${STRAPI_PORT:-1337}"
+printf "  │  Elasticsearch     →  http://localhost:%-5s               │\n" "${ELASTICSEARCH_PORT:-9200}"
+echo "  └──────────────────────────────────────────────────────────┘"
+echo ""
+echo -e "  ${BOLD}Infrastructure (actual ports — may differ if defaults were busy)${RESET}"
+echo "  ┌──────────────────────────────────────────────────────────┐"
+printf "  │  PostgreSQL        →  localhost:%-5s                    │\n" "${POSTGRES_PORT:-5432}"
+printf "  │  MongoDB           →  localhost:%-5s                  │\n" "${MONGO_PORT:-27017}"
+printf "  │  Redis             →  localhost:%-5s                    │\n" "${REDIS_PORT:-6379}"
+printf "  │  Kafka             →  localhost:%-5s                    │\n" "${KAFKA_PORT:-9092}"
+printf "  │  MinIO API         →  http://localhost:%-5s               │\n" "${MINIO_API_PORT:-9000}"
+echo "  └──────────────────────────────────────────────────────────┘"
 echo ""
 echo -e "  ${BOLD}Useful commands${RESET}"
 echo "  ./run-local.sh --down          # stop everything"

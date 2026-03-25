@@ -195,7 +195,6 @@ info "Checking and claiming ports..."
 claim_port "POSTGRES_PORT"        "${POSTGRES_PORT:-5432}"   "PostgreSQL"
 claim_port "MONGO_PORT"           "${MONGO_PORT:-27017}"     "MongoDB"
 claim_port "REDIS_PORT"           "${REDIS_PORT:-6379}"      "Redis"
-claim_port "ZOOKEEPER_PORT"       "${ZOOKEEPER_PORT:-2181}"  "Zookeeper"
 claim_port "KAFKA_PORT"           "${KAFKA_PORT:-9092}"      "Kafka"
 claim_port "ELASTICSEARCH_PORT"   "${ELASTICSEARCH_PORT:-9200}" "Elasticsearch"
 claim_port "MINIO_API_PORT"       "${MINIO_API_PORT:-9000}"  "MinIO API"
@@ -377,7 +376,6 @@ info "Waiting for infrastructure to become healthy..."
 wait_healthy supporthub-postgres      "PostgreSQL"        90
 wait_healthy supporthub-mongo         "MongoDB"           90
 wait_healthy supporthub-redis         "Redis"             60
-wait_healthy supporthub-zookeeper     "Zookeeper"         60
 wait_healthy supporthub-kafka         "Kafka"            120
 wait_healthy supporthub-elasticsearch "Elasticsearch"    180
 wait_healthy supporthub-minio         "MinIO"             60
@@ -390,7 +388,6 @@ if $INFRA_ONLY; then
   printf "  PostgreSQL    → localhost:%s\n"             "${POSTGRES_PORT:-5432}"
   printf "  MongoDB       → localhost:%s\n"             "${MONGO_PORT:-27017}"
   printf "  Redis         → localhost:%s\n"             "${REDIS_PORT:-6379}"
-  printf "  Zookeeper     → localhost:%s\n"             "${ZOOKEEPER_PORT:-2181}"
   printf "  Kafka         → localhost:%s\n"             "${KAFKA_PORT:-9092}"
   printf "  Elasticsearch → http://localhost:%s\n"      "${ELASTICSEARCH_PORT:-9200}"
   printf "  MinIO API     → http://localhost:%s\n"      "${MINIO_API_PORT:-9000}"

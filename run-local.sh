@@ -17,8 +17,18 @@ RED="\033[31m"; GREEN="\033[32m"; YELLOW="\033[33m"; CYAN="\033[36m"
 info()    { echo -e "${CYAN}${BOLD}[INFO]${RESET}  $*"; }
 success() { echo -e "${GREEN}${BOLD}[ OK ]${RESET}  $*"; }
 warn()    { echo -e "${YELLOW}${BOLD}[WARN]${RESET}  $*"; }
-error()   { echo -e "${RED}${BOLD}[ERR ]${RESET}  $*" >&2; }
-die()     { error "$*"; exit 1; }
+error()   { echo -e "${RED}${BOLD}[ERR ]${RESET}  $*"; }
+die() {
+  echo ""
+  echo -e "${RED}${BOLD}"
+  echo "  ╔═══════════════════════════════════════════════════════╗"
+  echo "  ║                    FATAL ERROR                        ║"
+  echo "  ╚═══════════════════════════════════════════════════════╝"
+  echo -e "${RESET}"
+  error "$*"
+  echo ""
+  exit 1
+}
 
 # ── Paths ───────────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -107,6 +117,19 @@ if [[ -z "${ANTHROPIC_API_KEY:-}" ]] || [[ "$ANTHROPIC_API_KEY" == *"REPLACE"* ]
 fi
 
 # ── Port helpers ─────────────────────────────────────────────
+# Tracks ports already claimed in this run to prevent two services
+# from being assigned the same port when both defaults are busy.
+_CLAIMED_PORTS=()
+
+_port_is_claimed() {
+  local p="$1"
+  local q
+  for q in "${_CLAIMED_PORTS[@]+"${_CLAIMED_PORTS[@]}"}"; do
+    [[ "$q" == "$p" ]] && return 0
+  done
+  return 1
+}
+
 # Safely update KEY=VALUE in the .env file (handles URLs, special chars)
 update_env() {
   local key="$1" val="$2" tmp="${ENV_FILE}.tmp"
@@ -115,10 +138,12 @@ update_env() {
   ' "$ENV_FILE" > "$tmp" && mv "$tmp" "$ENV_FILE"
 }
 
-# Echo the first port >= $1 that no process or Docker container is listening on
+# Echo the first port >= $1 that is free on the host AND not already claimed
+# in this script run (avoids two services racing to the same free port).
 find_free_port() {
   local port=$1
-  while nc -z -w1 localhost "$port" 2>/dev/null || \
+  while _port_is_claimed "$port" || \
+        nc -z -w1 localhost "$port" 2>/dev/null || \
         docker ps --format '{{.Ports}}' 2>/dev/null | grep -q ":${port}->"; do
     port=$((port + 1))
   done
@@ -127,7 +152,8 @@ find_free_port() {
 
 # claim_port VAR DEFAULT LABEL
 # 1. Stops any alien (non-supporthub) Docker container holding the port.
-# 2. If still busy, finds the next free port, writes it to .env, and exports it.
+# 2. If still busy or already claimed this run, finds the next free port,
+#    writes it to .env, and exports it.
 claim_port() {
   local var="$1" default="$2" label="$3"
   local port="${!var:-$default}"
@@ -143,16 +169,19 @@ claim_port() {
     sleep 0.5
   fi
 
-  # If still occupied (host process or stubborn container), find a free port
-  if nc -z -w1 localhost "$port" 2>/dev/null || \
+  # If still occupied OR already assigned to another service this run,
+  # find the next genuinely free, unclaimed port.
+  if _port_is_claimed "$port" || \
+     nc -z -w1 localhost "$port" 2>/dev/null || \
      docker ps --format '{{.Ports}}' 2>/dev/null | grep -q ":${port}->"; then
     local new_port
     new_port="$(find_free_port $((port + 1)))"
-    warn "Port ${port} (${label}) still busy → reassigned to ${new_port}"
+    warn "Port ${port} (${label}) busy/claimed → reassigned to ${new_port}"
     update_env "$var" "$new_port"
     port="$new_port"
   fi
 
+  _CLAIMED_PORTS+=("$port")
   export "${var}=${port}"
 }
 
@@ -215,11 +244,11 @@ if ! $SKIP_BUILD && ! $INFRA_ONLY; then
     info "No system mvn — using wrapper (first run downloads ~10 MB, then starts)"
   fi
 
-  info "Maven output is shown below. Downloads can be silent for several minutes on"
-  info "a cold local repository — the heartbeat below confirms the build is alive."
+  MVN_LOG="${TMPDIR:-/tmp}/supporthub-mvn-build.log"
+  info "Maven output streams below AND is saved to: ${MVN_LOG}"
+  info "First run downloads ~200 MB of dependencies — a heartbeat prints every 30s."
 
-  # Background heartbeat: prints elapsed time every 30 s so the terminal
-  # doesn't look frozen while Maven downloads dependencies.
+  # Background heartbeat so the terminal doesn't look frozen during downloads.
   _mvn_heartbeat() {
     local t=0
     while true; do
@@ -230,16 +259,35 @@ if ! $SKIP_BUILD && ! $INFRA_ONLY; then
   _mvn_heartbeat &
   _MVN_HB_PID=$!
 
-  # Run Maven; capture exit code without letting set -e kill us before cleanup
+  # Run Maven; tee stdout+stderr to log so nothing is ever lost.
+  # set +e prevents set -euo pipefail from aborting before we can clean up.
   set +e
-  $MVN_CMD clean package -DskipTests --no-transfer-progress
-  _MVN_EXIT=$?
+  $MVN_CMD clean package -DskipTests --no-transfer-progress 2>&1 | tee "$MVN_LOG"
+  _MVN_EXIT="${PIPESTATUS[0]}"
   set -e
 
   kill "$_MVN_HB_PID" 2>/dev/null; wait "$_MVN_HB_PID" 2>/dev/null || true
 
-  [[ $_MVN_EXIT -eq 0 ]] \
-    || die "Maven build failed (exit ${_MVN_EXIT}). Check the output above, or run 'mvn clean package -DskipTests' in /backend directly."
+  if [[ $_MVN_EXIT -ne 0 ]]; then
+    echo ""
+    echo -e "${RED}${BOLD}"
+    echo "  ╔═══════════════════════════════════════════════════════╗"
+    echo "  ║               MAVEN BUILD FAILED                     ║"
+    echo "  ╚═══════════════════════════════════════════════════════╝"
+    echo -e "${RESET}"
+    echo -e "  ${BOLD}Last 40 lines of build log (${MVN_LOG}):${RESET}"
+    echo "  ─────────────────────────────────────────────────────────"
+    tail -40 "$MVN_LOG" | sed 's/^/  /'
+    echo ""
+    die "Maven exited ${_MVN_EXIT}. Fix the errors above, then re-run (or use --skip-build if JARs exist)."
+  fi
+
+  echo ""
+  echo -e "${GREEN}${BOLD}"
+  echo "  ╔═══════════════════════════════════════════════════════╗"
+  echo "  ║            BACKEND BUILD SUCCESSFUL                   ║"
+  echo "  ╚═══════════════════════════════════════════════════════╝"
+  echo -e "${RESET}"
   cd "$SCRIPT_DIR"
   success "Backend build complete"
 fi

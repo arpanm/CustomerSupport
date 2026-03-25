@@ -115,16 +115,32 @@ if ! $SKIP_BUILD && ! $INFRA_ONLY; then
   # set_java_home() only sets JAVACMD, not JAVA_HOME, so the exec fails with
   # "JAVA_HOME: unbound variable" when JAVA_HOME isn't already exported.
   # Auto-detect and export it here so the wrapper always has it.
+  # On Debian/Ubuntu the alternatives chain goes:
+  #   /usr/bin/java -> /etc/alternatives/java -> /usr/lib/jvm/java-21-.../bin/java
+  # We need the JDK root (two dirname levels above the real binary).
   if [[ -z "${JAVA_HOME:-}" ]]; then
-    _java_real="$(readlink -f "$(command -v java)" 2>/dev/null || true)"
-    if [[ -n "$_java_real" ]]; then
+    _java_bin="$(command -v java 2>/dev/null || true)"
+    if [[ -n "$_java_bin" ]]; then
+      # Follow the full symlink chain (handles update-alternatives on Linux)
+      _java_real="$_java_bin"
+      while [[ -L "$_java_real" ]]; do
+        _link_target="$(readlink "$_java_real")"
+        # Relative symlinks need to be resolved against their directory
+        if [[ "$_link_target" != /* ]]; then
+          _java_real="$(dirname "$_java_real")/$_link_target"
+        else
+          _java_real="$_link_target"
+        fi
+      done
       JAVA_HOME="$(dirname "$(dirname "$_java_real")")"
       export JAVA_HOME
       info "Auto-detected JAVA_HOME=$JAVA_HOME"
     fi
   fi
 
-  ./mvnw clean package -DskipTests --no-transfer-progress -q \
+  # Drop -q so Maven output is visible (helps diagnose hangs on first run
+  # when it downloads the Maven distribution or dependencies).
+  ./mvnw clean package -DskipTests --no-transfer-progress \
     || die "Maven build failed. Run './mvnw clean package -DskipTests' in /backend for details."
   cd "$SCRIPT_DIR"
   success "Backend build complete"

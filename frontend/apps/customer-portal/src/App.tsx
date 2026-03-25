@@ -1,35 +1,60 @@
-import { createBrowserRouter, Outlet } from 'react-router-dom';
+import { createBrowserRouter, Navigate } from 'react-router-dom';
+import { Layout } from './components/Layout.js';
+import { ProtectedRoute } from './components/ProtectedRoute.js';
+import { LoginPage } from './pages/LoginPage.js';
 import { HomePage } from './pages/HomePage.js';
+import { TicketListPage } from './pages/TicketListPage.js';
+import { TicketDetailPage } from './pages/TicketDetailPage.js';
 import { CreateTicketPage } from './pages/CreateTicketPage.js';
-
-function RootLayout() {
-  return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="border-b border-gray-200 bg-white shadow-sm">
-        <div className="mx-auto max-w-4xl px-4 py-4">
-          <h1 className="text-xl font-bold text-blue-600">SupportHub</h1>
-        </div>
-      </header>
-      <main className="mx-auto max-w-4xl px-4 py-8">
-        <Outlet />
-      </main>
-    </div>
-  );
-}
+import { FAQSearchPage } from './pages/FAQSearchPage.js';
+import { OrderHistoryPage } from './pages/OrderHistoryPage.js';
+import { NotificationsPage } from './pages/NotificationsPage.js';
 
 export const router = createBrowserRouter([
   {
-    path: '/',
-    element: <RootLayout />,
+    path: '/login',
+    element: <LoginPage />,
+  },
+  {
+    element: <ProtectedRoute />,
     children: [
       {
-        index: true,
-        element: <HomePage />,
-      },
-      {
-        path: 'tickets/new',
-        element: <CreateTicketPage />,
+        element: <Layout />,
+        children: [
+          {
+            path: '/',
+            element: <HomePage />,
+          },
+          {
+            path: '/tickets',
+            element: <TicketListPage />,
+          },
+          {
+            path: '/tickets/new',
+            element: <CreateTicketPage />,
+          },
+          {
+            path: '/tickets/:id',
+            element: <TicketDetailPage />,
+          },
+          {
+            path: '/faq',
+            element: <FAQSearchPage />,
+          },
+          {
+            path: '/orders',
+            element: <OrderHistoryPage />,
+          },
+          {
+            path: '/notifications',
+            element: <NotificationsPage />,
+          },
+        ],
       },
     ],
+  },
+  {
+    path: '*',
+    element: <Navigate to="/tickets" replace />,
   },
 ]);

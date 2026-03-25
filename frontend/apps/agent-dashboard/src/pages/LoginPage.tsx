@@ -50,7 +50,7 @@ export function LoginPage() {
       };
 
       login(result.data.user, result.data.token);
-      await navigate('/');
+      navigate('/');
     } catch {
       setError('root', { message: 'Network error. Please try again.' });
     }

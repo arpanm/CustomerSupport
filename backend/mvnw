@@ -100,7 +100,7 @@ trim() {
 parse_maven_config() {
   NEW_LINE=$'\n'
   local wrapper_properties="$(dirname -- "$0")/.mvn/wrapper/maven-wrapper.properties"
-  local distributionUrl wrapperUrl
+  local wrapperUrl
   while IFS="=" read -r key value; do
     case "$(trim "${key}")" in
     distributionUrl) distributionUrl=$(trim "${value}") ;;
@@ -224,6 +224,20 @@ parse_maven_config
 maybe_download_wrapper_jar
 maybe_download_maven
 set_java_home
+
+# Locate project base dir (directory that contains .mvn/) by traversing upward.
+if [ -z "${MAVEN_PROJECTBASEDIR-}" ]; then
+  MAVEN_PROJECTBASEDIR="$(cd "$(dirname -- "$0")" && pwd)"
+  wdir="${MAVEN_PROJECTBASEDIR}"
+  while [ "${wdir}" != '/' ]; do
+    if [ -d "${wdir}/.mvn" ]; then
+      MAVEN_PROJECTBASEDIR="${wdir}"
+      break
+    fi
+    wdir="$(dirname -- "${wdir}")"
+  done
+fi
+export MAVEN_PROJECTBASEDIR
 
 exec "${JAVA_HOME}/bin/java" \
   ${JVMFLAGS-} \

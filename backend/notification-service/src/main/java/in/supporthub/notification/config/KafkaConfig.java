@@ -25,7 +25,12 @@ import java.util.Map;
  * {@link TicketStatusChangedEvent}. Uses {@link ErrorHandlingDeserializer} to
  * handle malformed messages without crashing the consumer.
  *
- * <p>Acknowledgment mode: MANUAL_IMMEDIATE — ensures offset is committed only after
+ * <p>A second factory ({@code stringKafkaListenerContainerFactory}) is provided
+ * for topics whose producers do not emit Spring type-header metadata (e.g.,
+ * {@code tenant.onboarded} from the tenant-service). Those consumers receive raw
+ * JSON strings and perform manual deserialization.
+ *
+ * <p>Acknowledgment mode: RECORD — ensures offset is committed only after
  * successful processing (supports retry semantics with the idempotency check).
  */
 @Configuration
@@ -61,7 +66,7 @@ public class KafkaConfig {
     }
 
     /**
-     * Listener container factory with MANUAL_IMMEDIATE acknowledgment.
+     * Listener container factory with RECORD acknowledgment.
      * Concurrency set to 3 to leverage virtual threads for parallel partition processing.
      */
     @Bean
@@ -72,6 +77,43 @@ public class KafkaConfig {
                 new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(consumerFactory);
         factory.setConcurrency(3);
+        factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.RECORD);
+
+        return factory;
+    }
+
+    /**
+     * String-value consumer factory for topics that publish plain JSON without
+     * Spring-Kafka type headers (e.g., {@code tenant.onboarded}).
+     *
+     * <p>Consumers using this factory receive raw JSON strings and are responsible
+     * for their own deserialization.
+     */
+    @Bean
+    public ConsumerFactory<String, String> stringConsumerFactory() {
+        Map<String, Object> props = new HashMap<>();
+        props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
+        props.put(ConsumerConfig.GROUP_ID_CONFIG, "notification-service-tenant");
+        props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
+        props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, false);
+        props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
+        props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
+
+        return new DefaultKafkaConsumerFactory<>(props);
+    }
+
+    /**
+     * Listener container factory backed by the string consumer factory.
+     * Used by consumers that need raw string values (e.g., {@code tenant.onboarded}).
+     */
+    @Bean
+    public ConcurrentKafkaListenerContainerFactory<String, String> stringKafkaListenerContainerFactory(
+            ConsumerFactory<String, String> stringConsumerFactory) {
+
+        ConcurrentKafkaListenerContainerFactory<String, String> factory =
+                new ConcurrentKafkaListenerContainerFactory<>();
+        factory.setConsumerFactory(stringConsumerFactory);
+        factory.setConcurrency(1);
         factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.RECORD);
 
         return factory;

@@ -37,14 +37,14 @@ export class SupportHubClient {
     });
 
     if (!response.ok) {
-      const error: ApiError = await response.json().catch(() => ({
+      const error = await (response.json() as Promise<ApiError>).catch((): ApiError => ({
         error: { code: 'UNKNOWN_ERROR', message: `HTTP ${response.status}` },
         meta: { requestId: '', timestamp: new Date().toISOString(), apiVersion: 'v1' },
       }));
       throw new SupportHubError(error.error.code, error.error.message, response.status);
     }
 
-    const body: ApiResponse<T> = await response.json();
+    const body = await (response.json() as Promise<ApiResponse<T>>);
     return body.data;
   }
 
@@ -62,8 +62,8 @@ export class SupportHubClient {
 
   async listMyTickets(cursor?: string, limit = 25): Promise<PaginatedResponse<Ticket>> {
     const params = new URLSearchParams({ limit: String(limit) });
-    if (cursor) params.set('cursor', cursor);
-    return this.request<PaginatedResponse<Ticket>>(`/api/v1/tickets/me?${params}`);
+    if (cursor !== undefined) params.set('cursor', cursor);
+    return this.request<PaginatedResponse<Ticket>>(`/api/v1/tickets/me?${params.toString()}`);
   }
 
   async addComment(ticketNumber: string, content: string): Promise<TicketActivity> {
@@ -86,13 +86,13 @@ export class SupportHubClient {
   }
 
   async listFaqs(categoryId?: string): Promise<FaqEntry[]> {
-    const params = categoryId ? `?categoryId=${categoryId}` : '';
+    const params = categoryId !== undefined ? `?categoryId=${categoryId}` : '';
     return this.request<FaqEntry[]>(`/api/v1/faqs${params}`);
   }
 
   // Notification operations
   async getNotifications(cursor?: string): Promise<PaginatedResponse<Notification>> {
-    const params = cursor ? `?cursor=${cursor}` : '';
+    const params = cursor !== undefined ? `?cursor=${cursor}` : '';
     return this.request<PaginatedResponse<Notification>>(`/api/v1/notifications/me${params}`);
   }
 

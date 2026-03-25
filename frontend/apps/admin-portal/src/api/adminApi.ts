@@ -1,5 +1,5 @@
-const BASE_URL = import.meta.env.VITE_API_BASE_URL as string;
-const TENANT_ID = import.meta.env.VITE_TENANT_ID as string;
+const BASE_URL = import.meta.env.VITE_API_BASE_URL;
+const TENANT_ID = import.meta.env.VITE_TENANT_ID;
 
 function authHeaders(token: string): Record<string, string> {
   return {
@@ -128,5 +128,88 @@ export interface DashboardSummary {
   slaBreachRate: number;
 }
 
+export interface SlaComplianceResult {
+  categoryName: string;
+  totalTickets: number;
+  onTimeTickets: number;
+  compliancePercent: number;
+}
+
+export interface AgentPerformanceResult {
+  agentId: string;
+  agentEmail: string;
+  ticketsResolved: number;
+  avgResolutionMinutes: number;
+  firstResponseAvgMinutes: number;
+}
+
+export interface TrendPoint {
+  label: string;
+  count: number;
+}
+
+export interface CategoryCount {
+  categoryId: string;
+  categoryName: string;
+  count: number;
+}
+
 export const getDashboardSummary = (token: string, from: string, to: string): Promise<DashboardSummary> =>
   api(`/api/v1/reports/dashboard?from=${from}&to=${to}`, token);
+
+export const getSlaCompliance = (token: string, from: string, to: string): Promise<SlaComplianceResult[]> =>
+  api(`/api/v1/reports/sla-compliance?from=${from}&to=${to}`, token);
+
+export const getAgentPerformance = (token: string, from: string, to: string): Promise<AgentPerformanceResult[]> =>
+  api(`/api/v1/reports/agent-performance?from=${from}&to=${to}`, token);
+
+export const getTicketTrend = (token: string, from: string, to: string): Promise<TrendPoint[]> =>
+  api(`/api/v1/reports/tickets/trend?from=${from}&to=${to}`, token);
+
+export const getTicketsByCategory = (token: string, from: string, to: string): Promise<CategoryCount[]> =>
+  api(`/api/v1/reports/tickets/by-category?from=${from}&to=${to}`, token);
+
+// ---- FAQs ----
+export interface FAQ {
+  id: string;
+  question: string;
+  answer: string;
+  category: string;
+  isPublished: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface FAQPage {
+  content: FAQ[];
+  totalElements: number;
+  totalPages: number;
+  number: number;
+  size: number;
+}
+
+export interface CreateFAQRequest {
+  question: string;
+  answer: string;
+  category: string;
+  isPublished: boolean;
+}
+
+export const listFaqs = (
+  token: string,
+  page: number,
+  search: string,
+): Promise<FAQPage> =>
+  api(`/api/v1/faqs?page=${page}&search=${encodeURIComponent(search)}&size=10`, token);
+
+export const createFaq = (token: string, req: CreateFAQRequest): Promise<FAQ> =>
+  api('/api/v1/faqs', token, { method: 'POST', body: JSON.stringify(req) });
+
+export const updateFaq = (token: string, id: string, req: Partial<CreateFAQRequest>): Promise<FAQ> =>
+  api(`/api/v1/faqs/${id}`, token, { method: 'PUT', body: JSON.stringify(req) });
+
+export const deleteFaq = (token: string, id: string): Promise<void> =>
+  api(`/api/v1/faqs/${id}`, token, { method: 'DELETE' });
+
+export const toggleFaqPublish = (token: string, id: string, isPublished: boolean): Promise<FAQ> =>
+  api(`/api/v1/faqs/${id}`, token, { method: 'PUT', body: JSON.stringify({ isPublished }) });

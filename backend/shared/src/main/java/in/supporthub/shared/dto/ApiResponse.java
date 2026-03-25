@@ -53,4 +53,15 @@ public record ApiResponse<T>(T data, ResponseMeta meta) {
     public static <T> ApiResponse<T> of(T data) {
         return of(data, "v1");
     }
+
+    /**
+     * Alias for {@link #of(Object)} — use when the call-site reads more clearly as "success".
+     *
+     * @param data Payload.
+     * @param <T>  Payload type.
+     * @return Wrapped response.
+     */
+    public static <T> ApiResponse<T> success(T data) {
+        return of(data);
+    }
 }

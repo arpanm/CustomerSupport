@@ -18,6 +18,11 @@ info()    { echo -e "${CYAN}${BOLD}[INFO]${RESET}  $*"; }
 success() { echo -e "${GREEN}${BOLD}[ OK ]${RESET}  $*"; }
 warn()    { echo -e "${YELLOW}${BOLD}[WARN]${RESET}  $*"; }
 error()   { echo -e "${RED}${BOLD}[ERR ]${RESET}  $*"; }
+
+# ERR trap: fires whenever set -e would abort due to a non-zero exit.
+# Shows the exact line + command so you don't get a silent death.
+trap 'echo -e "\n${RED}${BOLD}[ERR ]${RESET}  Script aborted at line ${LINENO}: ${BASH_COMMAND}" ; exit 1' ERR
+
 die() {
   echo ""
   echo -e "${RED}${BOLD}"
@@ -215,31 +220,44 @@ success "Ports OK (any conflicts were resolved above)"
 # ── Build backend ───────────────────────────────────────────
 if ! $SKIP_BUILD && ! $INFRA_ONLY; then
   info "Building backend (all 11 services) — this takes ~3 min on first run..."
-  cd "$BACKEND_DIR"
+  cd "$BACKEND_DIR" || die "Backend directory not found: $BACKEND_DIR"
 
-  # Resolve JAVA_HOME if not already set.
-  # 'java -XshowSettings:property' is the most portable method — it works on
-  # Linux (openjdk, alternatives), macOS (stub + /usr/libexec/java_home),
-  # sdkman, jenv, and Homebrew installs without any symlink gymnastics.
+  # ── JAVA_HOME detection ───────────────────────────────────
+  # Use || true on every command substitution to prevent set -e from aborting
+  # when java exits non-zero (e.g. SIGPIPE caused by awk exiting early).
   if [[ -z "${JAVA_HOME:-}" ]]; then
-    JAVA_HOME="$(java -XshowSettings:property -version 2>&1 \
-      | awk -F' = ' '/java\.home/ {print $2; exit}')"
-    # java.home may point to the jre/ subdirectory on some JDKs — go one level up
-    if [[ -n "${JAVA_HOME:-}" ]] && [[ ! -x "${JAVA_HOME}/bin/javac" ]] \
-        && [[ -x "${JAVA_HOME}/../bin/javac" ]]; then
-      JAVA_HOME="$(cd "${JAVA_HOME}/.." && pwd)"
+    # macOS: /usr/libexec/java_home is the canonical way to locate the JDK.
+    if [[ "$(uname -s)" == "Darwin" ]] && [[ -x "/usr/libexec/java_home" ]]; then
+      JAVA_HOME="$(/usr/libexec/java_home 2>/dev/null)" || true
     fi
-    [[ -n "${JAVA_HOME:-}" ]] && export JAVA_HOME \
-      && info "Auto-detected JAVA_HOME=$JAVA_HOME"
+    # Linux / fallback: parse java -XshowSettings:property.
+    # NOTE: java may exit non-zero due to SIGPIPE when awk closes the pipe
+    # early — || true prevents set -e from aborting the script.
+    if [[ -z "${JAVA_HOME:-}" ]]; then
+      JAVA_HOME="$(java -XshowSettings:property -version 2>&1 \
+        | awk -F' = ' '/java\.home/ {print $2; exit}')" || true
+      # Some JDKs set java.home to the jre/ subdirectory — go one level up
+      if [[ -n "${JAVA_HOME:-}" ]] && [[ ! -x "${JAVA_HOME}/bin/javac" ]] \
+          && [[ -x "${JAVA_HOME}/../bin/javac" ]]; then
+        JAVA_HOME="$(cd "${JAVA_HOME}/.." && pwd)" || true
+      fi
+    fi
+    if [[ -n "${JAVA_HOME:-}" ]]; then
+      export JAVA_HOME
+      info "Auto-detected JAVA_HOME=$JAVA_HOME"
+    else
+      warn "Could not auto-detect JAVA_HOME — Maven will use whatever is in PATH"
+    fi
   fi
 
+  # ── Maven command selection ───────────────────────────────
   # Prefer system 'mvn' over './mvnw' — avoids the wrapper's silent
   # ~10 MB distribution download and a sh-compatibility bug in mvnw.
   MVN_CMD="./mvnw"
   if command -v mvn &>/dev/null; then
     MVN_CMD="mvn"
-    MVN_VER="$(mvn --version 2>&1 | head -1 | sed 's/Apache Maven //')"
-    info "Using system Maven ${MVN_VER}"
+    MVN_VER="$(mvn --version 2>&1 | head -1 | sed 's/Apache Maven //')" || true
+    info "Using system Maven ${MVN_VER:-<version unknown>}"
   else
     info "No system mvn — using wrapper (first run downloads ~10 MB, then starts)"
   fi

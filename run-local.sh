@@ -278,11 +278,16 @@ if ! $SKIP_BUILD && ! $INFRA_ONLY; then
   _MVN_HB_PID=$!
 
   # Run Maven; tee stdout+stderr to log so nothing is ever lost.
-  # set +e prevents set -euo pipefail from aborting before we can clean up.
+  # We must BOTH disable errexit (set +e) AND suppress the ERR trap while Maven
+  # runs — otherwise the trap fires on Maven's non-zero exit before we can
+  # capture PIPESTATUS and show the proper failure banner.
+  trap '' ERR   # suppress ERR trap for the duration of the Maven pipeline
   set +e
   $MVN_CMD clean package -DskipTests --no-transfer-progress 2>&1 | tee "$MVN_LOG"
   _MVN_EXIT="${PIPESTATUS[0]}"
   set -e
+  # Restore the ERR trap now that Maven is done and we own the error handling
+  trap 'echo -e "\n${RED}${BOLD}[ERR ]${RESET}  Script aborted at line ${LINENO}: ${BASH_COMMAND}" ; exit 1' ERR
 
   kill "$_MVN_HB_PID" 2>/dev/null; wait "$_MVN_HB_PID" 2>/dev/null || true
 

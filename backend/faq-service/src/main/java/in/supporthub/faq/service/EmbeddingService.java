@@ -5,7 +5,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.stereotype.Service;
 
-import java.util.List;
 
 /**
  * Generates text embeddings using OpenAI's {@code text-embedding-3-small} model via Spring AI.
@@ -45,8 +44,7 @@ public class EmbeddingService {
     public float[] generateEmbedding(String question, String answer) {
         String combinedText = buildCombinedText(question, answer);
         try {
-            List<Double> embeddingDoubles = embeddingModel.embed(combinedText);
-            return toFloatArray(embeddingDoubles);
+            return embeddingModel.embed(combinedText);
         } catch (Exception ex) {
             log.warn("Embedding generation failed — FAQ will be saved without embedding. error={}",
                     ex.getMessage());
@@ -62,8 +60,7 @@ public class EmbeddingService {
      */
     public float[] generateQueryEmbedding(String query) {
         try {
-            List<Double> embeddingDoubles = embeddingModel.embed(query);
-            return toFloatArray(embeddingDoubles);
+            return embeddingModel.embed(query);
         } catch (Exception ex) {
             log.warn("Query embedding generation failed — will fall back to keyword search. error={}",
                     ex.getMessage());
@@ -79,11 +76,5 @@ public class EmbeddingService {
         return combined;
     }
 
-    private float[] toFloatArray(List<Double> doubles) {
-        float[] result = new float[doubles.size()];
-        for (int i = 0; i < doubles.size(); i++) {
-            result[i] = doubles.get(i).floatValue();
-        }
-        return result;
-    }
+
 }

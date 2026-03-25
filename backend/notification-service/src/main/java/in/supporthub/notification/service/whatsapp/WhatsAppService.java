@@ -107,7 +107,8 @@ public class WhatsAppService {
                                     .doOnNext(body -> log.warn(
                                             "WhatsApp API returned error status={} ticketNumber={}",
                                             response.statusCode().value(), ticketNumber))
-                                    .then())
+                                    .thenReturn(new RuntimeException(
+                                            "WhatsApp API error status=" + response.statusCode().value())))
                     .toBodilessEntity()
                     .block();
 

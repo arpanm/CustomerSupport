@@ -66,7 +66,8 @@ public class Msg91SmsService {
                                     .doOnNext(body -> log.error(
                                             "MSG91 SMS API error status={} ticketNumber={}",
                                             response.statusCode().value(), ticketNumber))
-                                    .then())
+                                    .thenReturn(new RuntimeException(
+                                            "MSG91 API error status=" + response.statusCode().value())))
                     .toBodilessEntity()
                     .block();
 
@@ -114,7 +115,8 @@ public class Msg91SmsService {
                                     .doOnNext(body -> log.error(
                                             "MSG91 status SMS API error status={} ticketNumber={}",
                                             response.statusCode().value(), ticketNumber))
-                                    .then())
+                                    .thenReturn(new RuntimeException(
+                                            "MSG91 API error status=" + response.statusCode().value())))
                     .toBodilessEntity()
                     .block();
 

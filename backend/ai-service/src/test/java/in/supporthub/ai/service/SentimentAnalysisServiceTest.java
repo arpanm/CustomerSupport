@@ -76,8 +76,8 @@ class SentimentAnalysisServiceTest {
         when(chatResponse.getResult()).thenReturn(generation);
         when(chatResponse.getMetadata()).thenReturn(chatResponseMetadata);
         when(chatResponseMetadata.getUsage()).thenReturn(usage);
-        when(usage.getPromptTokens()).thenReturn(50L);
-        when(usage.getCompletionTokens()).thenReturn(30L);
+        when(usage.getPromptTokens()).thenReturn(50);
+        when(usage.getCompletionTokens()).thenReturn(30);
         when(anthropicChatModel.call(any(org.springframework.ai.chat.prompt.Prompt.class)))
                 .thenReturn(chatResponse);
 
@@ -107,8 +107,8 @@ class SentimentAnalysisServiceTest {
         when(chatResponse.getResult()).thenReturn(generation);
         when(chatResponse.getMetadata()).thenReturn(chatResponseMetadata);
         when(chatResponseMetadata.getUsage()).thenReturn(usage);
-        when(usage.getPromptTokens()).thenReturn(50L);
-        when(usage.getCompletionTokens()).thenReturn(20L);
+        when(usage.getPromptTokens()).thenReturn(50);
+        when(usage.getCompletionTokens()).thenReturn(20);
         when(anthropicChatModel.call(any(org.springframework.ai.chat.prompt.Prompt.class)))
                 .thenReturn(chatResponse);
 
@@ -145,8 +145,8 @@ class SentimentAnalysisServiceTest {
         when(chatResponse.getResult()).thenReturn(generation);
         when(chatResponse.getMetadata()).thenReturn(chatResponseMetadata);
         when(chatResponseMetadata.getUsage()).thenReturn(usage);
-        when(usage.getPromptTokens()).thenReturn(50L);
-        when(usage.getCompletionTokens()).thenReturn(25L);
+        when(usage.getPromptTokens()).thenReturn(50);
+        when(usage.getCompletionTokens()).thenReturn(25);
         when(anthropicChatModel.call(any(org.springframework.ai.chat.prompt.Prompt.class)))
                 .thenReturn(chatResponse);
 

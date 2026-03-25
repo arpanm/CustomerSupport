@@ -101,7 +101,7 @@ class CustomerServiceTest {
 
             assertThatThrownBy(() -> customerService.getProfile(tenantId, customerId))
                     .isInstanceOf(CustomerNotFoundException.class)
-                    .hasMessageContaining("CUSTOMER_NOT_FOUND")
+                    .hasMessageContaining("Customer not found")
                     .extracting("errorCode")
                     .isEqualTo("CUSTOMER_NOT_FOUND");
         }

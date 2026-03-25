@@ -211,11 +211,32 @@
             <scope>test</scope>
         </dependency>
 
-        <!-- Testcontainers JUnit Jupiter — @Testcontainers / @Container annotations
-             needed by every service that has integration tests (IT suffix). -->
+        <!-- Testcontainers — common modules needed by integration tests across
+             all services. Version is managed by the testcontainers-bom import.
+
+             junit-jupiter  : @Testcontainers + @Container JUnit 5 annotations
+             postgresql     : PostgreSQLContainer (services with JPA / Flyway)
+             kafka          : KafkaContainer     (services that produce/consume)
+             mongodb        : MongoDBContainer   (ai-service, notification-service)
+        -->
         <dependency>
             <groupId>org.testcontainers</groupId>
             <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>kafka</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>mongodb</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>

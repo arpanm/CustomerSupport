@@ -8,7 +8,7 @@ version: "3.9"
 networks:
   supporthub-network:
     driver: bridge
-    name: supporthub_default
+    name: supporthub-network
 
 volumes:
   postgres-data:

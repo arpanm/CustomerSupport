@@ -63,12 +63,12 @@ done
 
 # ── Tear-down ───────────────────────────────────────────────
 if $DO_DOWN; then
-  info "Stopping all SupportHub containers..."
+  info "Stopping all SupportHub containers and removing volumes (fresh-start wipe)..."
   docker compose -f "$SERVICES_COMPOSE" \
-    --env-file "$ENV_FILE" down --remove-orphans 2>/dev/null || true
+    --env-file "$ENV_FILE" down -v --remove-orphans 2>/dev/null || true
   docker compose -f "$INFRA_COMPOSE" \
-    --env-file "$ENV_FILE" down --remove-orphans 2>/dev/null || true
-  success "All containers stopped."
+    --env-file "$ENV_FILE" down -v --remove-orphans 2>/dev/null || true
+  success "All containers and volumes removed. Next run will start from a clean state."
   exit 0
 fi
 

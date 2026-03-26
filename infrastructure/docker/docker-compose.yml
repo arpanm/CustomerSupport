@@ -40,7 +40,9 @@ services:
       - postgres-data:/var/lib/postgresql/data
       - ./init-db:/docker-entrypoint-initdb.d:ro
     networks:
-      - supporthub-network
+      supporthub-network:
+        aliases:
+          - postgres
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-supporthub} -d ${POSTGRES_DB:-supporthub}"]
       interval: 10s
@@ -66,7 +68,9 @@ services:
     volumes:
       - mongo-data:/data/db
     networks:
-      - supporthub-network
+      supporthub-network:
+        aliases:
+          - mongo
     healthcheck:
       test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
       interval: 10s
@@ -93,7 +97,9 @@ services:
     volumes:
       - redis-data:/data
     networks:
-      - supporthub-network
+      supporthub-network:
+        aliases:
+          - redis
     healthcheck:
       test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-supporthub_dev_password}", "ping"]
       interval: 10s
@@ -131,7 +137,9 @@ services:
     volumes:
       - kafka-data:/var/lib/kafka/data
     networks:
-      - supporthub-network
+      supporthub-network:
+        aliases:
+          - kafka
     healthcheck:
       test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:9092 > /dev/null 2>&1"]
       interval: 15s
@@ -161,7 +169,9 @@ services:
     volumes:
       - elasticsearch-data:/usr/share/elasticsearch/data
     networks:
-      - supporthub-network
+      supporthub-network:
+        aliases:
+          - elasticsearch
     ulimits:
       memlock:
         soft: -1
@@ -195,7 +205,9 @@ services:
     volumes:
       - minio-data:/data
     networks:
-      - supporthub-network
+      supporthub-network:
+        aliases:
+          - minio
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:9000/minio/health/live"]
       interval: 10s

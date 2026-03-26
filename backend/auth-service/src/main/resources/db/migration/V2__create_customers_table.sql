@@ -9,7 +9,7 @@
 
 CREATE TABLE IF NOT EXISTS customers (
     id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    tenant_id             UUID NOT NULL REFERENCES tenants(id),
+    tenant_id             UUID NOT NULL,
     phone_encrypted       BYTEA NOT NULL,
     phone_hash            VARCHAR(64) NOT NULL,
     email_encrypted       BYTEA,

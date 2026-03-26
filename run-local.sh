@@ -220,6 +220,26 @@ success "Ports OK (any conflicts were resolved above)"
 if ! $SKIP_BUILD && ! $INFRA_ONLY; then
   info "Building backend (all 11 services) — this takes ~3 min on first run..."
 
+  # ── JWT key generation (dev-only, gitignored) ─────────────
+  # auth-service needs private+public; api-gateway and mcp-server need public only.
+  _AUTH_KEYS_DIR="$BACKEND_DIR/auth-service/src/main/resources/keys"
+  if [[ ! -f "$_AUTH_KEYS_DIR/private.pem" ]]; then
+    info "Generating dev RSA-2048 JWT key pair (first run only)..."
+    mkdir -p "$_AUTH_KEYS_DIR"
+    openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 \
+      -out "$_AUTH_KEYS_DIR/private.pem" 2>/dev/null
+    openssl rsa -in "$_AUTH_KEYS_DIR/private.pem" -pubout \
+      -out "$_AUTH_KEYS_DIR/public.pem" 2>/dev/null
+    chmod 600 "$_AUTH_KEYS_DIR/private.pem"
+  fi
+  for _svc in api-gateway mcp-server; do
+    _SVC_KEYS="$BACKEND_DIR/$_svc/src/main/resources/keys"
+    if [[ ! -f "$_SVC_KEYS/public.pem" ]]; then
+      mkdir -p "$_SVC_KEYS"
+      cp "$_AUTH_KEYS_DIR/public.pem" "$_SVC_KEYS/public.pem"
+    fi
+  done
+
   # Stop any running service containers first so they release bind mounts on
   # JAR files. Without this, Docker Desktop (Mac) recreates the mount paths as
   # directories when mvn clean deletes the target/ folder, causing the next jar

@@ -162,6 +162,7 @@ services:
       SENDGRID_FROM_EMAIL: ${SENDGRID_FROM_EMAIL:-support@supporthub.in}
       WHATSAPP_ACCESS_TOKEN: ${WHATSAPP_ACCESS_TOKEN:-}
       WHATSAPP_PHONE_NUMBER_ID: ${WHATSAPP_PHONE_NUMBER_ID:-}
+      ENCRYPTION_SECRET_KEY: ${ENCRYPTION_SECRET_KEY:-55SrRelbg/GkQRz3sGIoGhc5q41G24EzV9949DW0Nro=}
     ports:
       - "8085:8085"
     healthcheck:
@@ -226,6 +227,7 @@ services:
       - ../../backend/order-sync-service/target/supporthub-order-sync-service-1.0.0-SNAPSHOT.jar:/app/app.jar:ro
     environment:
       <<: *svc-env
+      ENCRYPTION_SECRET_KEY: ${ENCRYPTION_SECRET_KEY:-55SrRelbg/GkQRz3sGIoGhc5q41G24EzV9949DW0Nro=}
     ports:
       - "8089:8089"
     healthcheck:

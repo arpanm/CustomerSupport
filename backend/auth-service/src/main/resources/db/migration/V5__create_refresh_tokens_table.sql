@@ -9,7 +9,7 @@
 
 CREATE TABLE IF NOT EXISTS refresh_tokens (
     id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    tenant_id         UUID NOT NULL REFERENCES tenants(id),
+    tenant_id         UUID NOT NULL,
     token_hash        VARCHAR(64) NOT NULL UNIQUE,
     subject_id        UUID NOT NULL,
     subject_type      VARCHAR(20) NOT NULL,

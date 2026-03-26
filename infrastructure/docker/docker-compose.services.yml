@@ -179,6 +179,10 @@ services:
       - ../../backend/faq-service/target/supporthub-faq-service-1.0.0-SNAPSHOT.jar:/app/app.jar:ro
     environment:
       <<: *svc-env
+      # Spring AI 1.1.x validates api-key as @NotBlank at startup.
+      # Provide a non-empty placeholder so the bean initialises; runtime
+      # embedding calls will fail gracefully until a real key is supplied.
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-sk-placeholder-local-dev-not-a-real-key}
     ports:
       - "8086:8086"
     healthcheck:

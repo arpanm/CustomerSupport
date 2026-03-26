@@ -39,3 +39,8 @@ Thumbs.db
 # Logs
 *.log
 logs/
+
+# Redis runtime data (AOF persistence files written to cwd when run locally)
+appendonlydir/
+appendonly.aof*
+dump.rdb

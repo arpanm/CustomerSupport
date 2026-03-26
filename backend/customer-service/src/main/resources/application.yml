@@ -19,6 +19,8 @@ spring:
     enabled: true
     locations: classpath:db/migration
     table: flyway_schema_history_customer
+    baseline-on-migrate: true
+    baseline-version: 0
   kafka:
     bootstrap-servers: ${KAFKA_SERVERS:localhost:9092}
     producer:

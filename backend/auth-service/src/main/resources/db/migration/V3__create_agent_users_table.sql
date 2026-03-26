@@ -9,7 +9,7 @@
 
 CREATE TABLE IF NOT EXISTS agent_users (
     id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    tenant_id             UUID NOT NULL REFERENCES tenants(id),
+    tenant_id             UUID NOT NULL,
     email                 VARCHAR(255) NOT NULL,
     display_name          VARCHAR(100) NOT NULL,
     password_hash         VARCHAR(255) NOT NULL,

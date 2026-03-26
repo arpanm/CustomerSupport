@@ -226,8 +226,10 @@ if ! $SKIP_BUILD && ! $INFRA_ONLY; then
   if [[ ! -f "$_AUTH_KEYS_DIR/private.pem" ]]; then
     info "Generating dev RSA-2048 JWT key pair (first run only)..."
     mkdir -p "$_AUTH_KEYS_DIR"
-    openssl genrsa -out "$_AUTH_KEYS_DIR/private.pem" 2048 2>/dev/null
-    openssl rsa -in "$_AUTH_KEYS_DIR/private.pem" -pubout -out "$_AUTH_KEYS_DIR/public.pem" 2>/dev/null
+    openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 \
+      -out "$_AUTH_KEYS_DIR/private.pem" 2>/dev/null
+    openssl rsa -in "$_AUTH_KEYS_DIR/private.pem" -pubout \
+      -out "$_AUTH_KEYS_DIR/public.pem" 2>/dev/null
     chmod 600 "$_AUTH_KEYS_DIR/private.pem"
   fi
   for _svc in api-gateway mcp-server; do

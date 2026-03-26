@@ -10,7 +10,7 @@
 
 CREATE TABLE IF NOT EXISTS teams (
     id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    tenant_id         UUID NOT NULL REFERENCES tenants(id),
+    tenant_id         UUID NOT NULL,
     name              VARCHAR(100) NOT NULL,
     slug              VARCHAR(100) NOT NULL,
     description       TEXT,

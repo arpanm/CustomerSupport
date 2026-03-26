@@ -219,6 +219,18 @@ success "Ports OK (any conflicts were resolved above)"
 # ── Build backend ───────────────────────────────────────────
 if ! $SKIP_BUILD && ! $INFRA_ONLY; then
   info "Building backend (all 11 services) — this takes ~3 min on first run..."
+
+  # Stop any running service containers first so they release bind mounts on
+  # JAR files. Without this, Docker Desktop (Mac) recreates the mount paths as
+  # directories when mvn clean deletes the target/ folder, causing the next jar
+  # plugin invocation to fail with "isn't a file".
+  if docker compose -f "$SERVICES_COMPOSE" --env-file "$ENV_FILE" ps --quiet 2>/dev/null | grep -q .; then
+    info "Stopping service containers before rebuild (releases JAR bind mounts)..."
+    docker compose -f "$SERVICES_COMPOSE" --env-file "$ENV_FILE" down 2>/dev/null || true
+  fi
+  # Also scrub any stale .jar directories Docker may have already created.
+  find "$BACKEND_DIR" -name "*.jar" -type d -exec rm -rf {} + 2>/dev/null || true
+
   cd "$BACKEND_DIR" || die "Backend directory not found: $BACKEND_DIR"
 
   # ── JAVA_HOME detection ───────────────────────────────────

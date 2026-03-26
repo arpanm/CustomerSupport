@@ -48,6 +48,9 @@ management:
   endpoint:
     health:
       show-details: when-authorized
+  health:
+    mail:
+      enabled: false   # smtp.gmail.com unreachable in Docker; mail sends fail at runtime not startup
   metrics:
     export:
       prometheus:

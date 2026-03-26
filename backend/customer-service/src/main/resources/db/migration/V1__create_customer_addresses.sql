@@ -45,7 +45,7 @@ ALTER TABLE customer_addresses ENABLE ROW LEVEL SECURITY;
 
 -- Allow access only when the row's tenant_id matches the session variable
 -- set by TenantContextFilter: SET app.current_tenant = '<uuid>'
-CREATE POLICY IF NOT EXISTS customer_addresses_tenant_isolation
+CREATE POLICY customer_addresses_tenant_isolation
     ON customer_addresses
     USING (tenant_id = current_setting('app.current_tenant', true)::UUID);
 

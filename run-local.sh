@@ -475,10 +475,13 @@ success "All artifacts found"
 
 # ── Start microservices + frontend ──────────────────────────
 info "Starting 11 microservices + 3 frontend apps..."
+# Use || true: Docker Compose exits non-zero when a service_healthy dependency
+# isn't satisfied within the compose startup window. We rely on the wait_healthy
+# loop below to track individual service status and report failures clearly.
 docker compose \
   -f "$SERVICES_COMPOSE" \
   --env-file "$ENV_FILE" \
-  up -d
+  up -d || true
 
 # ── Wait for api-gateway ─────────────────────────────────────
 echo ""

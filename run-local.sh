@@ -446,7 +446,7 @@ info "Starting 11 microservices + 3 frontend apps..."
 docker compose \
   -f "$SERVICES_COMPOSE" \
   --env-file "$ENV_FILE" \
-  up -d --remove-orphans
+  up -d
 
 # ── Wait for api-gateway ─────────────────────────────────────
 echo ""

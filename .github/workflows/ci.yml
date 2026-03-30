@@ -29,7 +29,7 @@ jobs:
         run: ./mvnw test -Dsurefire.failIfNoSpecifiedTests=false
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: backend-unit-test-results
           path: backend/**/target/surefire-reports/
@@ -57,7 +57,7 @@ jobs:
           TESTCONTAINERS_REUSE_ENABLE: true
       - name: Upload coverage report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: backend-coverage-report
           path: backend/**/target/site/jacoco/
@@ -81,7 +81,7 @@ jobs:
         continue-on-error: true
       - name: Upload OWASP report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: owasp-report
           path: backend/**/target/dependency-check-report.html

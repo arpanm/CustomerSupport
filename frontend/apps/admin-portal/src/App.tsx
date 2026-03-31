@@ -6,6 +6,7 @@ import { AgentManagementPage } from './pages/AgentManagementPage.js';
 import { SlaConfigPage } from './pages/SlaConfigPage.js';
 import { ReportingPage } from './pages/ReportingPage.js';
 import { FAQManagementPage } from './pages/FAQManagementPage.js';
+import { LoginPage } from './pages/LoginPage.js';
 
 const NAV_LINK_CLASS = ({ isActive }: { isActive: boolean }) =>
   `flex items-center rounded-md px-3 py-2 text-sm font-medium transition-colors ${
@@ -52,7 +53,7 @@ function AdminLayout() {
 export const router = createBrowserRouter([
   {
     path: '/login',
-    element: <div className="p-8 text-center text-gray-500">Admin login — coming soon</div>,
+    element: <LoginPage />,
   },
   {
     path: '/',

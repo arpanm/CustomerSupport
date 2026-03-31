@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Status
 
-**SupportHub** is currently in **Sprint 0 — Foundation** (specification phase). No source code exists yet. All 12 initial tasks are OPEN in `TODO.md`.
+**SupportHub** is in **Sprint 3 — Real-time, Reporting, AI Panel, File Uploads & E2E**. All 11 backend microservices and 3 frontend apps are implemented with working code (~296 Java files, ~26 TSX components, 19 Flyway migrations). The CMS (`/cms`) directory is scaffolding only — Strapi is not yet deployed.
 
 ---
 
@@ -18,6 +18,9 @@ Read these before starting any work:
 | `ARCHITECTURE.md` | System design, service map, data models, patterns |
 | `TODO.md` | All tasks, bugs, issues (single source of truth) |
 | `CLAUDE.md` | This file: how we work |
+| `CLAUDE-SDLC.md` | Full Micro-SDLC lifecycle, multi-agent orchestration, review/test/deploy protocols |
+| `README.md` | Getting started guide |
+| `.env.example` | Environment variable template |
 
 **If code conflicts with REQUIREMENT.md or ARCHITECTURE.md, the documents win.**
 
@@ -67,9 +70,18 @@ npm run dev -w apps/customer-portal             # Dev server: http://localhost:3
 ### Infrastructure
 
 ```bash
-# Full local stack (Postgres, MongoDB, Redis, Kafka, Elasticsearch, MinIO, Strapi)
+# One-command local setup (builds everything + starts Docker stack)
+./run-local.sh
+
+# Infrastructure only (Postgres, MongoDB, Redis, Kafka, Elasticsearch, MinIO)
 docker compose -f infrastructure/docker/docker-compose.yml up -d
 docker compose -f infrastructure/docker/docker-compose.yml down
+
+# Infrastructure + all services + frontends
+docker compose -f infrastructure/docker/docker-compose.yml -f infrastructure/docker/docker-compose.services.yml up -d
+
+# Observability stack (Prometheus, Grafana, Langfuse)
+docker compose -f infrastructure/docker/docker-compose-obs.yml up -d
 ```
 
 ### E2E Tests (Playwright, requires all services running)
@@ -78,6 +90,18 @@ docker compose -f infrastructure/docker/docker-compose.yml down
 cd frontend && npx playwright test
 cd frontend && npx playwright test --ui
 ```
+
+### Local Access URLs (after `./run-local.sh` or Docker Compose)
+
+| Service | URL |
+|---|---|
+| Customer Portal | http://localhost:3000 |
+| Agent Dashboard | http://localhost:3001 |
+| Admin Portal | http://localhost:3002 |
+| API Gateway | http://localhost:8080 |
+| Swagger (auth-service) | http://localhost:8081/swagger-ui.html |
+| MinIO Console | http://localhost:9001 |
+| Elasticsearch | http://localhost:9200 |
 
 ---
 
@@ -133,6 +157,31 @@ cd frontend && npx playwright test --ui
 - **CQRS**: `reporting-service` maintains Elasticsearch read models from Kafka events
 - **API-first**: OpenAPI annotations on all controllers, contracts before implementation
 - **Tenant context propagation**: `TenantContextHolder` populated by gateway filter; never accept `tenantId` as a user-controlled parameter
+
+### Kafka Event Flow
+
+Services communicate asynchronously via shared event records in `backend/shared/`:
+
+```
+ticket-service → ticket.created       → ai-service (sentiment), notification-service, reporting-service
+ticket-service → ticket.status.changed → notification-service, reporting-service
+ai-service     → sentiment.completed   → ticket-service (updates fields), reporting-service
+tenant-service → tenant.onboarded      → other services (provision tenant config)
+```
+
+Event classes: `TicketCreatedEvent`, `TicketStatusChangedEvent`, `SentimentAnalysisCompletedEvent`, `TicketActivityAddedEvent` — all in `backend/shared/src/.../events/`.
+
+### Shared Module (`backend/shared/`)
+
+Contains cross-cutting code used by all services:
+- **DTOs**: `ApiResponse<T>`, `PagedApiResponse`, `ApiError` (Java Records)
+- **Security**: `TenantContextHolder`, `JwtClaims`
+- **Exceptions**: `AppException` base class, `GlobalExceptionHandler`
+- **Events**: All Kafka event records (see above)
+
+### API Gateway Filters
+
+Request flow through `api-gateway`: `RequestIdFilter` → `TenantResolutionFilter` (from `X-Tenant-ID` header or subdomain) → `JwtAuthFilter` → `RateLimiterConfig` → downstream service.
 
 ---
 

@@ -1,6 +1,13 @@
 spring:
   application:
     name: api-gateway
+  main:
+    web-application-type: reactive
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
+      - org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.jpa.JpaRepositoriesAutoConfiguration
   threads:
     virtual:
       enabled: true
@@ -31,7 +38,7 @@ spring:
             - Path=/api/v1/tickets/**
           filters:
             - JwtAuthFilter
-            - TenantContextFilter
+            - TenantResolutionFilter
             - name: CircuitBreaker
               args:
                 name: ticket-service-cb
@@ -44,7 +51,7 @@ spring:
             - Path=/api/v1/customers/**
           filters:
             - JwtAuthFilter
-            - TenantContextFilter
+            - TenantResolutionFilter
             - name: CircuitBreaker
               args:
                 name: customer-service-cb
@@ -57,7 +64,7 @@ spring:
             - Path=/api/v1/ai/**
           filters:
             - JwtAuthFilter
-            - TenantContextFilter
+            - TenantResolutionFilter
             - name: CircuitBreaker
               args:
                 name: ai-service-cb
@@ -70,7 +77,7 @@ spring:
             - Path=/api/v1/notifications/**
           filters:
             - JwtAuthFilter
-            - TenantContextFilter
+            - TenantResolutionFilter
             - name: CircuitBreaker
               args:
                 name: notification-service-cb
@@ -82,7 +89,7 @@ spring:
           predicates:
             - Path=/api/v1/faqs/**
           filters:
-            - TenantContextFilter
+            - TenantResolutionFilter
             - name: CircuitBreaker
               args:
                 name: faq-service-cb
@@ -95,7 +102,7 @@ spring:
             - Path=/api/v1/reports/**
           filters:
             - JwtAuthFilter
-            - TenantContextFilter
+            - TenantResolutionFilter
             - name: CircuitBreaker
               args:
                 name: reporting-service-cb
@@ -108,7 +115,7 @@ spring:
             - Path=/api/v1/tenants/**
           filters:
             - JwtAuthFilter
-            - TenantContextFilter
+            - TenantResolutionFilter
             - name: CircuitBreaker
               args:
                 name: tenant-service-cb
@@ -121,7 +128,7 @@ spring:
             - Path=/api/v1/orders/**
           filters:
             - JwtAuthFilter
-            - TenantContextFilter
+            - TenantResolutionFilter
             - name: CircuitBreaker
               args:
                 name: order-sync-service-cb
@@ -134,7 +141,7 @@ spring:
             - Path=/mcp/**
           filters:
             - JwtAuthFilter
-            - TenantContextFilter
+            - TenantResolutionFilter
 
         # Agent dashboard WebSocket proxy
         - id: agent-dashboard-ws
@@ -143,7 +150,7 @@ spring:
             - Path=/ws/**
           filters:
             - JwtAuthFilter
-            - TenantContextFilter
+            - TenantResolutionFilter
 
       default-filters:
         - DedupeResponseHeader=Access-Control-Allow-Credentials Access-Control-Allow-Origin

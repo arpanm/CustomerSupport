@@ -1,6 +1,9 @@
 spring:
   application:
     name: ai-service
+  autoconfigure:
+    exclude:
+      - org.springframework.ai.vectorstore.pgvector.autoconfigure.PgVectorStoreAutoConfiguration
   threads:
     virtual:
       enabled: true

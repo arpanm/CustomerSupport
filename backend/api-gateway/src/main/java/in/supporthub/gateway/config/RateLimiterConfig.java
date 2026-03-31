@@ -49,6 +49,7 @@ public class RateLimiterConfig {
      * (e.g., behind a proxy without a forwarded-for header).
      */
     @Bean
+    @Primary
     public KeyResolver ipKeyResolver() {
         return exchange -> {
             var remoteAddress = exchange.getRequest().getRemoteAddress();

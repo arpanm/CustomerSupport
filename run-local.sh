@@ -357,8 +357,8 @@ if ! $SKIP_BUILD && ! $INFRA_ONLY; then
     touch node_modules/.install-stamp
   fi
 
-  VITE_API_BASE_URL=http://localhost:8080 \
-  VITE_WS_URL=ws://localhost:8080 \
+  VITE_API_BASE_URL=http://localhost:8000 \
+  VITE_WS_URL=ws://localhost:8000 \
   VITE_TENANT_ID=${VITE_TENANT_ID:-00000000-0000-0000-0000-000000000001} \
     npm run build --workspaces --if-present \
     || die "Frontend build failed. Run 'npm run build --workspaces' in /frontend for details."
@@ -485,18 +485,18 @@ docker compose \
 
 # ── Wait for api-gateway ─────────────────────────────────────
 echo ""
-info "Waiting for services to start (Spring Boot cold start ~60-90s)..."
-wait_healthy supporthub-auth-service        "auth-service"        180
-wait_healthy supporthub-ticket-service      "ticket-service"      180
-wait_healthy supporthub-customer-service    "customer-service"    180
-wait_healthy supporthub-faq-service         "faq-service"         180
-wait_healthy supporthub-tenant-service      "tenant-service"      180
-wait_healthy supporthub-notification-service "notification-service" 180
-wait_healthy supporthub-ai-service          "ai-service"          180
-wait_healthy supporthub-reporting-service   "reporting-service"   180
-wait_healthy supporthub-order-sync-service  "order-sync-service"  180
-wait_healthy supporthub-mcp-server          "mcp-server"          180
-wait_healthy supporthub-api-gateway         "api-gateway"         180
+info "Waiting for services to start (Spring Boot cold start ~3-4 min)..."
+wait_healthy supporthub-auth-service        "auth-service"        300
+wait_healthy supporthub-ticket-service      "ticket-service"      300
+wait_healthy supporthub-customer-service    "customer-service"    300
+wait_healthy supporthub-faq-service         "faq-service"         300
+wait_healthy supporthub-tenant-service      "tenant-service"      300
+wait_healthy supporthub-notification-service "notification-service" 300
+wait_healthy supporthub-ai-service          "ai-service"          300
+wait_healthy supporthub-reporting-service   "reporting-service"   300
+wait_healthy supporthub-order-sync-service  "order-sync-service"  300
+wait_healthy supporthub-mcp-server          "mcp-server"          300
+wait_healthy supporthub-api-gateway         "api-gateway"         300
 
 # ── Done ─────────────────────────────────────────────────────
 echo ""
@@ -514,7 +514,7 @@ echo "  └───────────────────────
 echo ""
 echo -e "  ${BOLD}API & Services${RESET}"
 echo "  ┌──────────────────────────────────────────────────────────┐"
-printf "  │  API Gateway       →  http://localhost:8080              │\n"
+printf "  │  API Gateway       →  http://localhost:8000              │\n"
 printf "  │  Swagger UI        →  http://localhost:8081/swagger-ui.html  │\n"
 printf "  │  MinIO Console     →  http://localhost:%-5s               │\n" "${MINIO_CONSOLE_PORT:-9001}"
 printf "  │  Strapi CMS        →  http://localhost:%-5s/admin         │\n" "${STRAPI_PORT:-1337}"

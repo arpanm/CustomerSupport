@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: production   # Requires manual approval in GitHub Environments settings
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Verify all quality gates passed
         run: |
           echo "Deploying tag: ${{ github.ref_name }}"

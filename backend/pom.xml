@@ -59,7 +59,7 @@
 
         <!-- Library versions -->
         <lombok.version>1.18.44</lombok.version>
-        <mapstruct.version>1.6.2</mapstruct.version>
+        <mapstruct.version>1.6.3</mapstruct.version>
         <!-- springdoc 2.x = Spring Boot 3.x; springdoc 3.x = Spring Boot 4.x.
              Keeping on 2.x to stay aligned with spring-boot-starter-parent 3.3.6.
              springdoc 3.0.2 dragged in spring-boot-servlet-4.0.3 which caused

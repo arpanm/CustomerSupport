@@ -65,7 +65,7 @@
              springdoc 3.0.2 dragged in spring-boot-servlet-4.0.3 which caused
              an EndpointCondition startup crash on every service. -->
         <springdoc-openapi.version>2.5.0</springdoc-openapi.version>
-        <jjwt.version>0.12.6</jjwt.version>
+        <jjwt.version>0.13.0</jjwt.version>
         <hypersistence-utils.version>3.8.0</hypersistence-utils.version>
         <testcontainers.version>1.20.3</testcontainers.version>
         <flyway.version>10.15.0</flyway.version>
